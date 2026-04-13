@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capex Evaluator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #EE8657 0%, #EE733A 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #FEFEFE;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: visible;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #F65A15 0%, #EE733A 100%);
+            padding: 30px;
+            text-align: center;
+            color: #FEFEFE;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            padding: 40px;
+        }
+
+        .column {
+            background: #FEFEFE;
+        }
+        
+        .column, .title-row, .tooltip { position: relative; }
+
+        .column h2 {
+            color: #F65A15;
+            font-size: 1.8em;
+            margin: 0;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #EE8657;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            background: #FEFEFE;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #F65A15;
+            box-shadow: 0 0 10px rgba(246, 90, 21, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .calculate-btn {
+            background: linear-gradient(135deg, #F65A15 0%, #EE733A 100%);
+            color: #FEFEFE;
+            padding: 18px 40px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .calculate-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(246, 90, 21, 0.3);
+        }
+
+        .calculate-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .results {
+            background: linear-gradient(135deg, #EE8657 0%, #EE733A 100%);
+            border-radius: 15px;
+            padding: 25px;
+            color: #FEFEFE;
+            margin-top: 20px;
+        }
+
+        .results h3 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(254, 254, 254, 0.2);
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 600;
+        }
+
+        .metric-value {
+            font-size: 1.1em;
+            font-weight: 700;
+        }
+
+        .positive {
+            color: #90EE90;
+        }
+
+        .negative {
+            color: #FFB6C1;
+        }
+
+        .recommendation {
+            background: rgba(254, 254, 254, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 4px solid #FEFEFE;
+        }
+
+        .recommendation h4 {
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+                gap: 30px;
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        .info-card {
+            background: rgba(238, 134, 87, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #EE8657;
+        }
+
+        .info-card h4 {
+            color: #F65A15;
+            margin-bottom: 10px;
+        }
+
+        .info-card p {
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .progress-container {
+            background: rgba(238, 134, 87, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            background: #EE8657;
+            height: 6px;
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            color: #F65A15;
+            font-size: 0.9em;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        .optimization-settings {
+            background: rgba(246, 90, 21, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #F65A15;
+        }
+
+        .setting-group {
+            margin-bottom: 15px;
+        }
+
+        .setting-label {
+            display: block;
+            color: #F65A15;
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .setting-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #EE8657;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+        .title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            border-bottom: 3px solid #f25c1f;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        .title {
+            margin: 0;             /* align vertically with icon */
+            color: #f25c1f;        /* your orange */
+            font-weight: 800;
+        }
+
+            /* Icon button */
+        .tooltip button,
+        .icon-btn {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 1px solid #dadada;
+            background: #fff;
+            font-weight: 700;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            cursor: pointer;
+
+        }
+        .icon-btn:hover,
+        .icon-btn:focus-visible {
+            box-shadow: 0 2px 8px rgba(0,0,0,.12);
+            transform: translateY(-1px);
+            outline: none;
+        }
+
+            /* Tooltip container */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            font-size: 0.9em;     
+            z-index: 1100;             
+        }
+
+            /* Panel */
+        .tooltip-panel {
+            position: absolute;
+            left: 50%;
+            transform: none;
+            top: calc(100% + 8px);
+            min-width: 260px;
+            max-width: min(46ch, 80vw);
+            padding: .75rem .9rem;
+            border-radius: .5rem;
+            background: #111;
+            color: #fff;
+            box-shadow: 0 8px 24px rgba(0,0,0,.22);
+            z-index: 1101;
+            
+
+            /* hidden by default */
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
+        }
+
+            /* Little arrow */
+        .tooltip-panel::after {
+            content: "";
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-bottom-color: #111;
+        }
+
+            /* Typography inside tooltip */
+        .tooltip-panel h4 {
+            margin: 0 0 .35rem;
+            font-size: .95rem;
+            color: #f7a37f; /* subtle orange accent */
+        }
+        .tooltip-panel p {
+            margin: .35rem 0;
+            font-size: .875rem;
+            line-height: 1.35;
+        }
+
+            /* Show on hover or keyboard focus */
+        .tooltip:hover .tooltip-panel,
+        .tooltip:focus-within .tooltip-panel {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(10px);
+            transition-delay: 0s;
+        }
+
+            /* Respect reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            .icon-btn,
+            .tooltip-panel {
+                transition: none;
+            }
+        }
+        #mapContainer,
+        #map {
+            height: 420px;
+            min-height: 300px;
+            width: 100%;
+            position: relative;
+            z-index: 100;
+        }
+       .opps {
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid rgba(0,0,0,.06);
+            padding: 12px 12px 12px;
+            margin-top: 20px;                 /* separación del bloque superior */
+            box-shadow: 0 8px 24px rgba(0,0,0,.06);
+            position: relative;
+            z-index: 200;                      /* que no lo tape el mapa */
+        }
+        .opps-head {
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid rgba(0,0,0,.08);
+        }
+        .opps h3 {
+            margin: 0 0 6px;
+            color: #0f172a;
+            font-weight: 800;
+            font-size: 1.05em;
+        }
+        .opps-sub {
+            margin: 0 0 12px;
+            color: #666;
+            font-size: .92rem;
+        }
+        #oppAccordion.accordion {
+            margin-top: 10px;
+            gap: 12px;
+        }
+        .accordion {
+            display: grid;
+            gap: 10px;
+        }
+
+        /* Tarjeta de oportunidad */
+        .accordion .item {
+            border: 1px solid #ececec;
+            border-radius: 10px;
+            background: #fff;
+            overflow: hidden;
+            transition: box-shadow .15s ease, transform .15s ease;
+        }
+        .accordion .item:hover {
+            box-shadow: 0 6px 18px rgba(0,0,0,.07);
+            transform: translateY(-1px);
+        }
+
+        /* Cabecera clickable */
+        .accordion .header {
+            width: 100%;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border: 0;
+            background: #fafafa;
+            cursor: pointer;
+            font-weight: 700;
+            color: #333;
+        }
+        .accordion .header:hover {
+            background: #fdf4ef;
+        }
+
+        /* Chevron */
+        .accordion .chev {
+            margin-left: auto;
+            transition: transform .15s ease;
+        }
+        .accordion .item.open .chev {
+            transform: rotate(90deg);
+        }
+
+        /* Panel */
+        .accordion .panel {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height .2s ease;
+            background: #fff;
+        }
+        .accordion .panel-inner {
+            padding: 12px 14px 14px;
+            color: #444;
+            font-size: .95em;
+        }
+
+        /* Grilla de pares clave/valor */
+        .kv {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 6px 10px;
+            margin: 8px 0 12px;
+        }
+        .kv .k { color: #666; }
+        .kv .v { font-weight: 700; }
+
+        /* Badges */
+        .badge-ok {
+            display: inline-block; padding: 3px 8px; border-radius: 999px;
+            background: #e8f5e9; color: #2e7d32; font-weight: 700; font-size: .85em;
+        }
+        .badge-warn {
+            display: inline-block; padding: 3px 8px; border-radius: 999px;
+            background: #fff3e0; color: #ef6c00; font-weight: 700; font-size: .85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Capex Evaluator</h1>
+            <p>Analyze and evaluate your civil work costs</p>
+        </div>
+        
+        <div class="content">
+            <!-- Left Column: Input Form -->
+            <div class="column">
+                <div class="title-row">
+                    <h2 class="title">Service Information</h2>
+                </div>
+                
+                
+                <div class="form-group">
+                    <label for="geojsonFile">Upload GeoJSON File</label>
+                    <input type="file" id="geojsonFile" accept=".geojson,.json" style="padding: 10px;">
+                    <div id="fileInfo" style="margin-top: 8px; font-size: 0.9em; color: #666;"></div>
+                </div>
+
+                <div class="optimization-settings" style = "display: none;">
+                    <!-- <h4 style="color: #F65A15; margin-bottom: 15px;">🚀 Optimización para Archivos Grandes</h4> -->
+                    
+                    <div class="setting-group" style = "display: none;">
+                        <label class="setting-label" for="maxCandidates">Máximo candidatos a evaluar:</label>
+                        <select id="maxCandidates" class="setting-input">
+                            <option value="10">Ultra Rápido (10) - Archivos >50K</option>
+                            <option value="25" selected>Balanceado (25) - Recomendado</option>
+                            <option value="50">Preciso (50) - Archivos <10K</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-group" style = "display: none;">
+                        <label class="setting-label" for="spatialFilter">Radio de búsqueda inicial (km):</label>
+                        <select id="spatialFilter" class="setting-input">
+                            <option value="1">1 km - Ultra rápido</option>
+                            <option value="2" selected>2 km - Balanceado</option>
+                            <option value="5">5 km - Amplio</option>
+                            <option value="10">10 km - Muy amplio</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-group" style = "display: none;">
+                        <label class="setting-label" for="enableMap">Mostrar mapa:</label>
+                        <select id="enableMap" class="setting-input">
+                            <option value="false">No - Máxima velocidad</option>
+                            <option value="true" selected>Sí - Con visualización</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="progressContainer" class="progress-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                    <div class="progress-text" id="progressText">Preparando...</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="projectName">Coordinates</label>
+                    <input type="text" id="projectName" placeholder="10.99384,-74.79639">
+                </div>
+                
+                <div class="form-group">
+                    <label for="mrc">MRC ($)</label>
+                    <input type="number" id="mrc" placeholder="0">
+                </div>
+
+                <div class="form-group">
+                    <label for="nrc">NRC ($)</label>
+                    <input type="number" id="nrc" placeholder="0">
+                </div>
+                
+                <div class="form-group">
+                    <label for="term">Contract term</label>
+                    <input type="number" id="term" placeholder="0">
+                </div>
+                
+                <div class="form-group">
+                    <label for="riskLevel">City</label>
+                    <select id="riskLevel">
+                        <option value="Barranquilla">Barranquilla</option>
+                        <option value="Bogota">Bogotá</option>
+                        <option value="Cali">Cali</option>
+                        <option value="Cartagena">Cartagena</option>
+                        <option value="Cucuta">Cúcuta</option>
+                        <option value="Ibague">Ibagué</option>
+                        <option value="Ipiales">Ipiales</option>
+                        <option value="Medellin">Medellín</option>
+                        <option value="Monteria">Montería</option>
+                        <option value="Palmira">Palmira</option>
+                        <option value="Pasto">Pasto</option>
+                        <option value="Popayan">Popayán</option>
+                        <option value="SantaMarta">Santa Marta</option>
+                        <option value="Sincelejo">Sincelejo</option>
+                        <option value="Valledupar">Valledupar</option>
+                        <option value="Villavicencio">Villavicencio</option>
+                    </select>
+                </div>
+                
+                <button class="calculate-btn" onclick="calculateDistance()">Find Closest Point & Calculate Distance</button>
+            </div>
+            
+            <!-- Right Column: Results and Information -->
+            <div class="column">
+                <div class="title-row">
+                    <h2 class="title">Analysis Results</h2>
+
+                    <div class="tooltip" role="group">
+                        <button
+                        class="icon-btn"
+                        aria-describedby="analysis-help"
+                        aria-label="What does this mean?"
+                        type="button"
+                        >?</button>
+
+                        <div class="tooltip-panel" id="analysis-help" role="tooltip">
+                        <h4>Distance Calculation Explained</h4>
+                        <p><strong>Walking Distance:</strong> Real pedestrian route distance ignoring vehicle restrictions.</p>
+                        <p><strong>Closest Point:</strong> Nearest infrastructure point from your coordinates.</p>
+                        <p><strong>CAPEX:</strong> Capital expenditure based on distance and city factors.</p>
+                        </div>
+                    </div>
+                </div>
+        
+                <div id="mapContainer" style="height: 400px; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+                    <div id="map"></div>
+                </div>
+                
+                <div id="results" class="results" style="display: none;">
+                    <h3>Distance Analysis Results</h3>
+                    
+                    <div class="metric">
+                        <span class="metric-label">Walking Distance</span>
+                        <span class="metric-value" id="distanceValue">0 meters</span>
+                    </div>
+                    
+                    <div class="metric">
+                        <span class="metric-label">Closest Point Coordinates</span>
+                        <span class="metric-value" id="coordinatesValue">N/A</span>
+                    </div>
+
+                    <div class="metric">
+                        <span class="metric-label">Capex Factor</span>
+                        <span class="metric-value" id="cityValue">$0</span>
+                    </div>
+
+                    <div class="metric">
+                        <span class="metric-label">Opex Factor</span>
+                        <span class="metric-value" id="cityPostes">$0</span>
+                    </div>
+                    
+                    <div class="metric">
+                        <span class="metric-label">Civil works cost</span>
+                        <span class="metric-value" id="civilWorksValue">$0</span>
+                    </div>
+
+                    <!-- <div class="metric">
+                        <span class="metric-label">City CAPEX Factor</span>
+                        <span class="metric-value" id="capexFactorValue">N/A</span>
+                    </div>
+                    
+                    <div class="metric">
+                        <span class="metric-label">Total CAPEX Estimation</span>
+                        <span class="metric-value" id="totalCapexValue">$0</span>
+                    </div> -->
+                    
+                    <div class="recommendation" id="recommendation">
+                        <h4>Analysis Summary</h4>
+                        <p id="recommendationText">Upload GeoJSON and enter coordinates to get analysis.</p>
+                    </div>
+                    <div id="oppsBox" class="opps" style="display:none;">
+                        <div>
+                            <h3>Oportunidades sugeridas</h3>
+                            <p class="opps-sub">
+                                A continuación encontrarás posibles oportunidades para obtener una respuesta
+                                <strong>POSITIVA</strong>
+                            </p>
+                        </div>
+                    </div>
+                    <div id="oppAccordion" class="accordion" role="region" aria-label="Oportunidades"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        let geojsonData = null;
+        let spatialIndex = null;
+        let isProcessing = false;
+        
+        // CAPEX factors by city
+        const cityFactors = {
+            'Barranquilla': { DRC: 1408538, RxM: 7605, VUAPostes: 75, HabilitacionH: 909453 },
+            'Bogota': { DRC: 1575744, RxM: 8965, VUAPostes: 133, HabilitacionH: 946066 },
+            'Cali': { DRC: 1538667, RxM: 13277, VUAPostes: 75, HabilitacionH: 948544 },
+            'Cartagena': { DRC: 1408538, RxM: 7605, VUAPostes: 75, HabilitacionH: 909453 },
+            'Cucuta': { DRC: 1961741, RxM: 9161, VUAPostes: 75, HabilitacionH: 1032955 },
+            'Ibague': { DRC: 1575744, RxM: 8965, VUAPostes: 133, HabilitacionH: 946066 },
+            'Ipiales': { DRC: 1538667, RxM: 9177, VUAPostes: 75, HabilitacionH: 882068 },
+            'Medellin': { DRC: 1766938, RxM: 13364, VUAPostes: 133, HabilitacionH: 959400 },
+            'Monteria': { DRC: 1575744, RxM: 8965, VUAPostes: 133, HabilitacionH: 946066 },
+            'Palmira': { DRC: 1538667, RxM: 13277, VUAPostes: 75, HabilitacionH: 882068 },
+            'Pasto': { DRC: 1538667, RxM: 9177, VUAPostes: 75, HabilitacionH: 882068 },
+            'Popayan': { DRC: 1538667, RxM: 9177, VUAPostes: 75, HabilitacionH: 882068 },
+            'SantaMarta': { DRC: 1452278, RxM: 7489, VUAPostes: 75, HabilitacionH: 948544 },
+            'Sincelejo': { DRC: 1575744, RxM: 8965, VUAPostes: 133, HabilitacionH: 946066 },
+            'Valledupar': { DRC: 1452278, RxM: 7489, VUAPostes: 75, HabilitacionH: 948544 },
+            'Villavicencio': { DRC: 1575744, RxM: 8965, VUAPostes: 133, HabilitacionH: 946066 }
+        };
+        
+        // Progress management
+        function showProgress(text, percent) {
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('progressText').textContent = text;
+            document.getElementById('progressBar').style.width = percent + '%';
+        }
+        
+        function hideProgress() {
+            document.getElementById('progressContainer').style.display = 'none';
+        }
+        
+        function updateProgress(text, percent) {
+            document.getElementById('progressText').textContent = text;
+            document.getElementById('progressBar').style.width = percent + '%';
+        }
+        
+        // File upload handler
+        document.getElementById('geojsonFile').addEventListener('change', async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+            document.getElementById('fileInfo').innerHTML = 
+                '📁 ' + file.name + ' (' + fileSizeMB + ' MB)';
+                
+            if (fileSizeMB > 50) {
+                document.getElementById('fileInfo').innerHTML += 
+                    '<br>⚠️ <strong>Archivo muy grande</strong> - Se recomienda configuración Ultra Rápida';
+                document.getElementById('maxCandidates').value = '10';
+                document.getElementById('spatialFilter').value = '1';
+                document.getElementById('enableMap').value = 'false';
+            }
+            
+            try {
+                showProgress('Cargando archivo...', 10);
+                const text = await file.text();
+                
+                showProgress('Parseando GeoJSON...', 30);
+                geojsonData = JSON.parse(text);
+                
+                if (!geojsonData.features) {
+                    throw new Error('Formato GeoJSON inválido');
+                }
+                
+                const featureCount = geojsonData.features.length;
+                document.getElementById('fileInfo').innerHTML += 
+                    '<br>📊 ' + featureCount.toLocaleString() + ' geometrías cargadas';
+                
+                showProgress('Construyendo índice espacial...', 60);
+                await buildSpatialIndex();
+                               
+                hideProgress();
+                showStatus('✅ GeoJSON cargado: ' + featureCount.toLocaleString() + ' geometrías', 'success');
+                
+            } catch (error) {
+                hideProgress();
+                showStatus('❌ Error cargando archivo: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        });
+        
+        // Build spatial index
+        async function buildSpatialIndex() {
+            return new Promise(function(resolve) {
+                setTimeout(function() {
+                    spatialIndex = new Map();
+                    const gridSize = 0.01; // ~1km grid
+                    
+                    geojsonData.features.forEach(function(feature, index) {
+                        if (!feature.geometry) return;
+                        
+                        const points = extractPoints(feature.geometry);
+                        points.forEach(function(point) {
+                            const gridX = Math.floor(point[0] / gridSize);
+                            const gridY = Math.floor(point[1] / gridSize);
+                            const gridKey = gridX + ',' + gridY;
+                            
+                            if (!spatialIndex.has(gridKey)) {
+                                spatialIndex.set(gridKey, []);
+                            }
+                            spatialIndex.get(gridKey).push({
+                                index: index,
+                                point: point,
+                                feature: feature
+                            });
+                        });
+                    });
+                    
+                    resolve();
+                }, 100);
+            });
+        }
+        
+        // Extract points from geometry
+        function extractPoints(geometry) {
+            const points = [];
+            
+            switch (geometry.type) {
+                case 'Point':
+                    points.push([geometry.coordinates[0], geometry.coordinates[1]]);
+                    break;
+                    
+                case 'LineString':
+                    const coords = geometry.coordinates;
+                    points.push([coords[0][0], coords[0][1]]); // Start
+                    if (coords.length > 2) {
+                        const mid = Math.floor(coords.length / 2);
+                        points.push([coords[mid][0], coords[mid][1]]); // Middle
+                    }
+                    points.push([coords[coords.length - 1][0], coords[coords.length - 1][1]]); // End
+                    break;
+                    
+                case 'Polygon':
+                    if (geometry.coordinates[0]) {
+                        const ring = geometry.coordinates[0];
+                        points.push([ring[0][0], ring[0][1]]);
+                        // Add a few more points for better coverage
+                        const step = Math.max(1, Math.floor(ring.length / 4));
+                        for (let i = step; i < ring.length - 1; i += step) {
+                            points.push([ring[i][0], ring[i][1]]);
+                        }
+                    }
+                    break;
+                    
+                case 'MultiPoint':
+                    geometry.coordinates.forEach(function(coord) {
+                        points.push([coord[0], coord[1]]);
+                    });
+                    break;
+                    
+                case 'MultiLineString':
+                    geometry.coordinates.forEach(function(line) {
+                        if (line.length > 0) {
+                            points.push([line[0][0], line[0][1]]);
+                            points.push([line[line.length - 1][0], line[line.length - 1][1]]);
+                        }
+                    });
+                    break;
+                    
+                case 'MultiPolygon':
+                    geometry.coordinates.forEach(function(polygon) {
+                        if (polygon[0] && polygon[0].length > 0) {
+                            points.push([polygon[0][0][0], polygon[0][0][1]]);
+                        }
+                    });
+                    break;
+            }
+            
+            return points;
+        }
+        
+        // Spatial query
+        function spatialQuery(clientLon, clientLat, radiusKm) {
+            const gridSize = 0.01;
+            const radiusDegrees = radiusKm / 111; // Rough conversion
+            
+            const candidates = new Set();
+            const centerGridX = Math.floor(clientLon / gridSize);
+            const centerGridY = Math.floor(clientLat / gridSize);
+            const gridRadius = Math.ceil(radiusDegrees / gridSize);
+            
+            // Search surrounding grid cells
+            for (let dx = -gridRadius; dx <= gridRadius; dx++) {
+                for (let dy = -gridRadius; dy <= gridRadius; dy++) {
+                    const gridKey = (centerGridX + dx) + ',' + (centerGridY + dy);
+                    const items = spatialIndex.get(gridKey);
+                    
+                    if (items) {
+                        items.forEach(function(item) {
+                            const distance = calculateEuclideanDistance(
+                                clientLat, clientLon, 
+                                item.point[1], item.point[0]
+                            );
+                            
+                            if (distance <= radiusKm * 1000) { // Convert to meters
+                                candidates.add(JSON.stringify({
+                                    distance: distance,
+                                    point: item.point,
+                                    index: item.index,
+                                    feature: item.feature
+                                }));
+                            }
+                        });
+                    }
+                }
+            }
+            
+            // Convert back and sort by distance
+            return Array.from(candidates)
+                .map(function(item) { return JSON.parse(item); })
+                .sort(function(a, b) { return a.distance - b.distance; });
+        }
+
+////MAP INITIALIZATION//////////////////////////
+
+
+        let map, geoLayer, uiGroup;
+        async function initializeMap({
+            force = false,          // bypass the <select> when true
+            clientLat = null,       // number
+            clientLon = null,       // number
+            closestLat = null,      // number
+            closestLon = null,      // number
+            drawRoute = true,       // fetch & draw walking route
+            fit = 'auto',           // 'auto' | 'ui' | 'data' | 'none'
+            maxFeaturesToShow = 50000
+            } = {}) {
+            const enableMap = document.getElementById('enableMap').value === 'true';
+            if ((!force && !enableMap) || !geojsonData) return;
+
+            // tiny helper for route
+            async function fetchRouteGeojson(startLon, startLat, endLon, endLat) {
+                try {
+                const url =
+                    `https://routing.openstreetmap.de/routed-foot/route/v1/foot/` +
+                    `${startLon},${startLat};${endLon},${endLat}` +
+                    `?overview=full&geometries=geojson&alternatives=false&steps=false`;
+                const res = await fetch(url, { headers: { Accept: 'application/json' } });
+                if (!res.ok) return null;
+                const data = await res.json();
+                return data?.routes?.[0]?.geometry || null; // GeoJSON LineString
+                } catch { return null; }
+            }
+
+            const wrap = document.getElementById('mapContainer');
+            const mapEl = document.getElementById('map');
+            if (!wrap || !mapEl) return;
+
+            // show container BEFORE Leaflet measures it
+            wrap.style.display = 'block';
+
+            if (!map) {
+                map = L.map(mapEl).setView([10.99384, -74.79639], 10);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© &copy; OpenStreetMap &copy; CARTO'
+                }).addTo(map);
+            }
+
+            // -------------------------
+            // 1) Dataset overlay (sampled)
+            // -------------------------
+            const maxPointsToShow = 30000;
+            const feats = geojsonData.features || [];
+            const step = Math.max(1, Math.ceil(feats.length / maxFeaturesToShow));
+            const featuresToShow = feats.filter((_, i) => i % step === 0);
+            const sampleData = { type: 'FeatureCollection', features: featuresToShow };
+
+            if (geoLayer) map.removeLayer(geoLayer);
+            geoLayer = L.geoJSON(sampleData, {
+                style: { color: '#EE8657', weight: 2, opacity: 0.9 },
+                pointToLayer: (_, latlng) =>
+                L.circleMarker(latlng, {
+                    radius: 4, fillColor: '#F65A15', color: '#EE8657',
+                    weight: 1, opacity: 1, fillOpacity: 0.85
+                })
+            }).addTo(map);
+
+            // -------------------------
+            // 2) UI overlays (client, closest, route)
+            // -------------------------
+            if (uiGroup) { map.removeLayer(uiGroup); uiGroup = null; }
+            uiGroup = L.featureGroup().addTo(map);
+
+            if (clientLat != null && clientLon != null) {
+                L.circleMarker([clientLat, clientLon], {
+                radius: 6, color: '#1e88e5', fillColor: '#1e88e5', fillOpacity: 0.95
+                }).bindTooltip('Client').addTo(uiGroup);
+            }
+
+            if (closestLat != null && closestLon != null) {
+                L.circleMarker([closestLat, closestLon], {
+                radius: 6, color: '#F65A15', fillColor: '#F65A15', fillOpacity: 0.95
+                }).bindTooltip('Closest point').addTo(uiGroup);
+
+                // route (optional)
+                if (drawRoute && clientLat != null && clientLon != null) {
+                const routeGeometry = await fetchRouteGeojson(
+                    /* OSRM wants lon,lat */ clientLon, clientLat, closestLon, closestLat
+                );
+                if (routeGeometry) {
+                    L.geoJSON(routeGeometry, { style: { color: '#2e7d32', weight: 4, opacity: 0.95 } })
+                    .addTo(uiGroup);
+                } else {
+                    // fallback: straight dashed line
+                    L.polyline([[clientLat, clientLon], [closestLat, closestLon]], {
+                    color: '#2e7d32', weight: 3, dashArray: '6,6'
+                    }).addTo(uiGroup);
+                }
+                }
+            }
+
+            // -------------------------
+            // 3) Resize + fit
+            // -------------------------
+            requestAnimationFrame(() => {
+                map.invalidateSize();
+                if (fit !== 'none') {
+                let bounds = null;
+                if ((fit === 'ui' || fit === 'auto') && uiGroup.getLayers().length) {
+                    bounds = uiGroup.getBounds();
+                }
+                if (!bounds && (fit === 'data' || fit === 'auto') && geoLayer.getBounds().isValid()) {
+                    bounds = geoLayer.getBounds();
+                }
+                if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24] });
+                }
+            });
+            }
+
+            
+            // Calculate euclidean distance
+            function calculateEuclideanDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371000; // Earth radius in meters
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                        Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            }
+            
+            // Get walking route
+            async function getWalkingRoute(startLon, startLat, endLon, endLat) {
+                const timeout = 3000;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(function() { controller.abort(); }, timeout);
+                
+                try {
+                    const url = 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/' + startLon + ',' + startLat + ';' + endLon + ',' + endLat;
+                    const response = await fetch(url + '?overview=false&geometries=geojson', {
+                        signal: controller.signal,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.routes && data.routes.length > 0) {
+                            return {
+                                distance: data.routes[0].distance,
+                                duration: data.routes[0].duration
+                            };
+                        }
+                    }
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                }
+            return null;
+        }
+        
+        
+////////////////////// Main calculation function
+        async function calculateDistance() {
+            if (isProcessing) {
+                showStatus('⏳ Procesamiento en curso, espera...', 'error');
+                return;
+            }
+            
+            if (!geojsonData || !spatialIndex) {
+                showStatus('❌ Por favor carga un archivo GeoJSON primero', 'error');
+                return;
+            }
+            
+            const coordinates = document.getElementById('projectName').value.trim();
+            const selectedCity = document.getElementById('riskLevel').value;
+            const maxCandidates = parseInt(document.getElementById('maxCandidates').value);
+            const searchRadius = parseFloat(document.getElementById('spatialFilter').value);
+            
+            if (!coordinates) {
+                showStatus('❌ Por favor ingresa las coordenadas', 'error');
+                return;
+            }
+            
+            let clientLat, clientLon;
+            try {
+                const coords = coordinates.split(',');
+                clientLat = parseFloat(coords[0].trim());
+                clientLon = parseFloat(coords[1].trim());
+            } catch (error) {
+                showStatus('❌ Formato de coordenadas inválido. Usa: lat,lon', 'error');
+                return;
+            }
+            let bestDistance = Infinity;
+            let bestPoint = null;
+            let bestRoute = null;
+            let successfulRoutes = 0;
+            isProcessing = true;
+            const startTime = Date.now();
+            
+            try {
+                showProgress('🔍 Buscando candidatos cercanos...', 10);
+                
+                // Fast spatial search
+                const candidates = spatialQuery(clientLon, clientLat, searchRadius);
+                const candidatesToEvaluate = candidates.slice(0, maxCandidates);
+                
+                if (candidatesToEvaluate.length === 0) {
+                    throw new Error('No se encontraron geometrías dentro de ' + searchRadius + 'km');
+                }
+                
+                updateProgress('📍 Evaluando ' + candidatesToEvaluate.length + ' candidatos...', 30);
+                
+                
+                
+                // Process candidates in batches
+                const batchSize = 3;
+                for (let i = 0; i < candidatesToEvaluate.length; i += batchSize) {
+                    const batch = candidatesToEvaluate.slice(i, i + batchSize);
+                    const progress = 30 + (i / candidatesToEvaluate.length) * 60;
+                    
+                    updateProgress(
+                        '🛣️ Calculando rutas ' + (i + 1) + '-' + Math.min(i + batchSize, candidatesToEvaluate.length) + ' de ' + candidatesToEvaluate.length + '...',
+                        progress
+                    );
+                    
+                    // Process batch in parallel
+                    const routePromises = batch.map(function(candidate) {
+                        return getWalkingRoute(clientLon, clientLat, candidate.point[0], candidate.point[1]);
+                    });
+                    
+                    const routes = await Promise.all(routePromises);
+                    
+                    routes.forEach(function(route, batchIndex) {
+                        if (route && route.distance < bestDistance) {
+                            bestDistance = route.distance;
+                            bestPoint = [batch[batchIndex].point[1], batch[batchIndex].point[0]]; // lat, lon
+                            bestRoute = route;
+                            successfulRoutes++;
+                        }
+                    });
+                    
+                    // Small delay to prevent browser freezing
+                    await new Promise(function(resolve) {
+                        setTimeout(resolve, 50);
+                    });
+                }
+                
+                const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                
+                if (bestPoint && bestDistance < Infinity) {
+                    updateProgress('✅ Finalizando...', 95);
+                    await initializeMap({
+                        force: true,
+                        clientLat,
+                        clientLon,
+                        closestLat: bestPoint[0],
+                        closestLon: bestPoint[1],
+                        drawRoute: true,
+                        fit: 'ui'        // zoom to the markers/route; use 'auto' to fallback to data layer
+                    });
+                    await displayResults(bestDistance, bestPoint, bestRoute, selectedCity, successfulRoutes, elapsedTime);
+                    hideProgress();
+                    
+                    
+                    showStatus('✅ Análisis completado en ' + elapsedTime + 's', 'success');
+                } else {
+                    throw new Error('No se encontró ninguna ruta válida');
+                }
+                
+            } catch (error) {
+                hideProgress();
+                showStatus('❌ Error: ' + error.message, 'error');
+            } finally {
+                isProcessing = false;
+            }
+            
+        }
+        
+        async function displayResults(distance, closestPoint, route, city, successfulRoutes, elapsedTime) {
+            document.getElementById('results').style.display = 'block';
+            
+            // Display distance
+            document.getElementById('distanceValue').textContent = Math.round(distance) + ' metros';
+            document.getElementById('distanceValue').className = 'metric-value positive';
+
+            
+            // Display coordinates
+            document.getElementById('coordinatesValue').textContent = 
+                closestPoint[0].toFixed(6) + ', ' + closestPoint[1].toFixed(6);
+            
+            function formatCOP(n) {
+                return new Intl.NumberFormat('es-CO', {
+                    style: 'currency', currency: 'COP', maximumFractionDigits: 0
+                }).format(n);
+            }
+
+            const factorCiudad = cityFactors[city];           // { DRC, RxM, ... }
+            const rxm = factorCiudad ? factorCiudad.RxM : null; // COP por metro
+            const hdrc = factorCiudad ? factorCiudad.DRC : null; // COP por DRC
+            const postes = factorCiudad ? factorCiudad.VUAPostes : null; // COP por postes
+            const opexfactor = (postes != null) ? postes * distance : null;
+            const costoObraCivil = (rxm != null) ? rxm * distance + hdrc + opexfactor : null;
+
+            
+
+            const mrc = Number(document.getElementById('mrc').value) || 0;
+            const nrc = Number(document.getElementById('nrc').value) || 0;
+            const term = Math.max(0, Math.floor(Number(document.getElementById('term').value) || 0));
+
+            const totalcontrato = mrc * term;
+            const usage = totalcontrato > 0 ? (costoObraCivil / totalcontrato) * 100 : null;
+            const payback = mrc > 0 ? ((costoObraCivil - nrc )/ mrc) : Infinity;
+            const targetMonths = term / 2;
+            const esPositiva = (isFinite(payback) && term > 0) ? (payback <= term / 2) : false;
+
+            // Display CAPEX factor
+              document.getElementById('cityValue').textContent =
+                (rxm != null) ? `${formatCOP(rxm)} / m` : 'N/A';
+
+            // Display OPEX factor
+                document.getElementById('cityPostes').textContent =
+                (opexfactor != null) ? formatCOP(opexfactor) : 'N/A';
+
+            // Display civil works cost
+                document.getElementById('civilWorksValue').textContent = 
+                (costoObraCivil != null)
+                    ? '$' + costoObraCivil.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                    : 'N/A';
+                
+            // Generate recommendation
+            const distanceKm = (distance / 1000).toFixed(2);
+            let recommendation = 
+                '• Distance: ' + Math.round(distance) + 'm (' + distanceKm + 'km)<br>' +
+                '• Total MRR: ' + formatCOP(Math.round(totalcontrato)) + '<br>' +
+                '• Revenue usage: ' + (usage != null ? usage.toFixed(1) + '%' : 'N/A') + '<br>' 
+            
+            if (esPositiva) {
+                recommendation += '<br><br>✅ <strong>RESPUESTA DE FACTIBILIDAD POSITIVA</strong>';
+                const box = document.getElementById('oppsBox');
+                if (box) box.style.display = 'none';
+            } else {
+                recommendation += '<br><br>❌ <strong>RESPUESTA DE FACTIBILIDAD NEGATIVA</strong>';
+                try {
+                    const items = await requestFeasibilityAdvice({ costoObraCivil, mrc, term });
+                    renderOpportunities(items, costoObraCivil);
+                } catch (e) {
+                    showStatus('No pude obtener las oportunidades: ' + e.message, 'error');
+                }
+            }
+            
+            document.getElementById('recommendationText').innerHTML = recommendation;
+        }
+
+        ////////////COMUNICACION AGENTE////////////////////
+        async function requestFeasibilityAdvice({ costoObraCivil, mrc, term }) {
+            // ⚠️ Ajusta la URL si es distinta
+            const url = 'http://ip address:port/feasibility-advise';
+
+            let res, raw;
+            try {
+                res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ costoObraCivil, mrc, term })
+                });
+                raw = await res.text();
+            } catch (e) {
+                throw new Error('No pude conectar con el backend');
+            }
+
+            console.debug('Feasibility RAW:', raw); // 👀 mira lo que llega
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status} ${res.statusText}`);
+            }
+
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch {
+                throw new Error('El backend no devolvió JSON válido');
+            }
+
+            // Acepta array directo o { opportunities: [...] }
+            let items = Array.isArray(data) ? data : (Array.isArray(data.opportunities) ? data.opportunities : null);
+            if (!items) {
+                throw new Error('La respuesta no trae "opportunities"');
+            }
+
+            // Normaliza y valida con tolerancia
+            items = items.map((it, i) => {
+                const out = {
+                oportunidad: Number(it.oportunidad ?? i + 1),
+                mrc: Number(it.mrc ?? 0),
+                nrc: Number(it.nrc ?? 0),
+                term: Number(it.term ?? 0),
+                };
+                return out;
+            });
+
+            // Revisa que al menos haya 1 y que term sea positivo
+            if (items.length === 0) {
+                throw new Error('No llegaron oportunidades');
+            }
+            const mal = items.find(x =>
+                !isFinite(x.mrc) || !isFinite(x.nrc) || !isFinite(x.term) || x.term <= 0
+            );
+            if (mal) {
+                throw new Error('Formato de oportunidades inválido');
+            }
+
+            return items;
+        }
+            
+        function renderOpportunities(items, costoObraCivil) {
+            const box = document.getElementById('oppsBox');
+            const acc = document.getElementById('oppAccordion');
+            if (!box || !acc) return;
+
+            acc.innerHTML = '';
+
+            const nfCOP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+            const nfUS  = new Intl.NumberFormat('en-US');
+
+            items.forEach((op, idx) => {
+                const oportunidad = op.oportunidad ?? (idx + 1);
+                const mrc  = Number(op.mrc)  || 0;
+                const nrc  = Number(op.nrc)  || 0;
+                const term = Number(op.term) || 0;
+
+                const totalContrato = mrc * term;
+                const paybackMeses  = mrc > 0 ? ((costoObraCivil - nrc) / mrc) : Infinity;
+                const okMitadTerm   = term > 0 ? (paybackMeses <= term / 2) : false;
+
+                const item = document.createElement('div');
+                item.className = 'item';
+
+                const hdr = document.createElement('button');
+                hdr.className = 'header';
+                hdr.innerHTML = `
+                <span>Oportunidad ${oportunidad}</span>
+                <span class="${okMitadTerm ? 'badge-ok' : 'badge-warn'}">
+                    ${okMitadTerm ? 'Payback ≤ mitad del término' : 'Payback > mitad del término'}
+                </span>
+                <span class="chev">▶</span>
+                `;
+
+                const panel = document.createElement('div');
+                panel.className = 'panel';
+                const inner = document.createElement('div');
+                inner.className = 'panel-inner';
+                inner.innerHTML = `
+                <div class="kv">
+                    <div class="k">MRC propuesto</div><div class="v">${nfCOP.format(mrc)}</div>
+                    <div class="k">NRC propuesto</div><div class="v">${nfCOP.format(nrc)}</div>
+                    <div class="k">Término</div><div class="v">${nfUS.format(term)} meses</div>
+                    <div class="k">Total contrato (MRC×término)</div><div class="v">${nfCOP.format(totalContrato)}</div>
+                </div>
+                <small style="color:#666">*Payback = (Costo de obra civil - NRC) ÷ MRC propuesto</small>
+                `;
+                panel.appendChild(inner);
+
+                // toggle + acordión exclusivo
+                hdr.addEventListener('click', () => {
+                const open = item.classList.toggle('open');
+                panel.style.maxHeight = open ? (panel.scrollHeight + 'px') : '0px';
+
+                // cerrar los demás
+                [...acc.querySelectorAll('.item')].forEach(el => {
+                    if (el !== item) {
+                    el.classList.remove('open');
+                    const p = el.querySelector('.panel');
+                    if (p) p.style.maxHeight = '0px';
+                    }
+                });
+                });
+
+                item.appendChild(hdr);
+                item.appendChild(panel);
+                acc.appendChild(item);
+            });
+
+            box.style.display = 'block';
+        }
+
+        
+        function showStatus(message, type) {
+            const statusDiv = document.createElement('div');
+            statusDiv.style.cssText = 
+                'position: fixed; top: 20px; right: 20px; z-index: 1000;' +
+                'padding: 15px 20px; border-radius: 8px; color: white; font-weight: bold;' +
+                'background: ' + (type === 'success' ? '#28a745' : '#dc3545') + ';' +
+                'box-shadow: 0 4px 12px rgba(0,0,0,0.3);' +
+                'max-width: 400px;';
+            statusDiv.innerHTML = message;
+            document.body.appendChild(statusDiv);
+            
+            setTimeout(function() {
+                if (document.body.contains(statusDiv)) {
+                    document.body.removeChild(statusDiv);
+                }
+            }, 5000);
+        }
+        
+        // Auto-adjust settings based on file size
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input, select');
+            inputs.forEach(function(input) {
+                input.addEventListener('input', function() {
+                    if (this.value) {
+                        this.style.borderColor = '#EE733A';
+                    } else {
+                        this.style.borderColor = '#EE8657';
+                    }
+                });
+            });
+            
+            // Auto-configure based on file size
+            document.getElementById('geojsonFile').addEventListener('change', function() {
+                setTimeout(function() {
+                    if (geojsonData && geojsonData.features) {
+                        const count = geojsonData.features.length;
+                        if (count > 50000) {
+                            document.getElementById('maxCandidates').value = '10';
+                            document.getElementById('spatialFilter').value = '1';
+                            document.getElementById('enableMap').value = 'false';
+                            showStatus('⚡ Configuración optimizada para ' + count.toLocaleString() + ' geometrías', 'success');
+                        } else if (count > 10000) {
+                            document.getElementById('maxCandidates').value = '25';
+                            document.getElementById('spatialFilter').value = '2';
+                        }
+                    }
+                }, 1000);
+            });
+        });
+    </script>
+</body>
+</html>
