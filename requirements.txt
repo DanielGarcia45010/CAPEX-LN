@@ -1,11 +1,10 @@
 streamlit
+pydeck
+shapely
+h3
+numpy
+requests
+pandas
 flask
 flask-cors
 openai
-shapely
-numpy
-scipy
-pydeck
-requests
-python-dotenv
-pandas
