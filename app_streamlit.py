@@ -15,7 +15,8 @@ engine = GeoEngine()
 @st.cache_data
 def load_geometries():
 
-    path = __import__("pathlib").Path.home() / "Downloads" / "test.json"
+    path = "test.json"
+    
 
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
