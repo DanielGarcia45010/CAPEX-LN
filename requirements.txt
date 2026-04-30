@@ -1,0 +1,11 @@
+streamlit
+flask
+flask-cors
+openai
+shapely
+numpy
+scipy
+pydeck
+requests
+python-dotenv
+pandas
