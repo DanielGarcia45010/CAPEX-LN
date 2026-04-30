@@ -7,7 +7,7 @@ import pickle
 from scipy.spatial import cKDTree
 
 # 🔥 ARCHIVO EN DESCARGAS
-INPUT = r"C:\Users\1872643\Downloads\test.json"
+INPUT = str(Path("C:/Users/1872643/Downloads/test.json"))
 OUTPUT = "data/index.pkl"
 
 os.makedirs("data", exist_ok=True)
