@@ -2,16 +2,19 @@ import requests
 
 BASE_URL = "https://routing.openstreetmap.de/routed-foot/route/v1/foot/"
 
-def get_route(start_lon, start_lat, end_lon, end_lat):
+def get_route(start_lon, start_lat, end_lon, end_lat, full=False):
+
+    url = f"{BASE_URL}{start_lon},{start_lat};{end_lon},{end_lat}"
+
+    params = {
+        "overview": "full" if full else "false",
+        "geometries": "geojson"
+    }
 
     try:
-        url = f"{BASE_URL}{start_lon},{start_lat};{end_lon},{end_lat}"
-        r = requests.get(url, params={"overview": "full", "geometries": "geojson"}, timeout=4)
-
-        if r.status_code != 200:
-            return None, None, None
-
+        r = requests.get(url, params=params, timeout=5)
         data = r.json()
+
         route = data["routes"][0]
 
         return (
