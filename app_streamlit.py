@@ -3,68 +3,33 @@ import json
 import pydeck as pdk
 from shapely.geometry import shape
 
-from geo_engine_h3 import GeoEngineH3
-from routing import get_route
+from geo_engine import GeoEngine
 
 st.set_page_config(layout="wide")
-st.title("🚀 CAPEX ENGINE PRO (TEST MODE)")
+st.title("🚀 CAPEX ENGINE PRO")
 
-engine = GeoEngineH3(resolution=8)
-geometries = []
+# 🔥 cargar índice ya procesado
+engine = GeoEngine()
 
-# ---------------- DATA SOURCE ----------------
-st.sidebar.title("Data Source")
+# 🔥 cargar geometrías desde DISCO (NO uploader)
+@st.cache_data
+def load_geometries():
 
-mode = st.sidebar.radio(
-    "Choose data source",
-    ["Local file (recommended)", "Upload file"]
-)
+    path = __import__("pathlib").Path.home() / "Downloads" / "test.json"
 
-data = None
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-# -------- LOCAL FILE (RECOMENDADO) --------
-if mode == "Local file (recommended)":
+    return [shape(f["geometry"]) for f in data["features"]]
 
-    path = st.text_input("Path to GeoJSON", "data/sample.geojson")
+geometries = load_geometries()
 
-    if st.button("Load local file"):
+st.success(f"{len(geometries)} geometries loaded")
 
-        try:
-            with open(path) as f:
-                data = json.load(f)
+# ---------------- INPUT ----------------
+coords = st.text_input("lat,lon")
 
-            geometries = [shape(f["geometry"]) for f in data["features"]]
-
-            st.success(f"{len(geometries)} geometries loaded (LOCAL)")
-
-        except Exception as e:
-            st.error(f"Error: {e}")
-
-# -------- UPLOAD (solo para archivos pequeños) --------
-else:
-
-    file = st.file_uploader("Upload GeoJSON")
-
-    if file:
-        data = json.loads(file.read())
-        geometries = [shape(f["geometry"]) for f in data["features"]]
-
-        st.success(f"{len(geometries)} geometries loaded (UPLOAD)")
-
-# ---------------- BUILD INDEX ----------------
-if geometries:
-
-    if st.button("Build H3 Index"):
-
-        with st.spinner("Building index..."):
-            engine.build(geometries)
-
-        st.success("Index ready 🚀")
-
-# ---------------- QUERY ----------------
-coords = st.text_input("lat,lon", "10.99384,-74.79639")
-
-if coords and engine.index:
+if coords:
 
     lat, lon = map(float, coords.split(","))
 
@@ -76,18 +41,19 @@ if coords and engine.index:
     best_d = float("inf")
     best_route = None
 
-    for idx in results:
+    for dist, idx in results:
 
         g = geometries[idx]
 
         try:
             c = g.centroid
-            route, d, _ = get_route(lon, lat, c.x, c.y)
 
-            if d and d < best_d:
+            # sin routing complejo para test base (evita fallos)
+            d = ((lon - c.x)**2 + (lat - c.y)**2) ** 0.5 * 111320
+
+            if d < best_d:
                 best_d = d
                 best = (c.x, c.y)
-                best_route = route
 
         except:
             continue
@@ -98,7 +64,6 @@ if coords and engine.index:
 
         layers = []
 
-        # Cliente
         layers.append(pdk.Layer(
             "ScatterplotLayer",
             data=[{"position": [lon, lat]}],
@@ -107,7 +72,6 @@ if coords and engine.index:
             get_fill_color=[255, 0, 0]
         ))
 
-        # Punto más cercano
         layers.append(pdk.Layer(
             "ScatterplotLayer",
             data=[{"position": list(best)}],
@@ -116,13 +80,11 @@ if coords and engine.index:
             get_fill_color=[0, 255, 0]
         ))
 
-        # Ruta
-        if best_route:
-            layers.append(pdk.Layer(
-                "PathLayer",
-                data=[{"path": best_route}],
-                get_path="path",
-                width_scale=5
-            ))
-
-        st.pydeck_chart(pdk.Deck(layers=layers))
+        st.pydeck_chart(pdk.Deck(
+            layers=layers,
+            initial_view_state=pdk.ViewState(
+                latitude=lat,
+                longitude=lon,
+                zoom=12
+            )
+        ))
