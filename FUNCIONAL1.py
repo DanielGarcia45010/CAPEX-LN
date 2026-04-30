@@ -12,6 +12,8 @@ import pydeck as pdk
 from shapely.geometry import shape, Point
 from shapely.ops import nearest_points
 from scipy.spatial import cKDTree
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 # =========================
 # 2. CONFIG
@@ -94,35 +96,53 @@ def generate_candidate_points(geom, client_lon, client_lat):
 
     return []
 
-
-def find_best_route(geometries, client_lon, client_lat, max_candidates, progress_callback=None):
+def find_best_route_parallel(
+    geometries, client_lon, client_lat, max_candidates,
+    progress_callback=None,
+    max_workers=10  # 🔥 puedes ajustar esto
+):
     tree, geom_indices = build_spatial_index(geometries)
     if tree is None:
         return None
 
     candidates = get_nearest_candidates(tree, geom_indices, client_lon, client_lat, max_candidates)
 
-    best = {"distance": float("inf"), "point": None, "geom_idx": None, "duration": None}
-
-    all_points = []
+    tasks = []
     for _, idx in candidates:
         pts = generate_candidate_points(geometries[idx], client_lon, client_lat)
         for p in pts:
-            all_points.append((idx, p[0], p[1]))
+            tasks.append((idx, p[0], p[1]))
 
-    for i, (idx, lon, lat) in enumerate(all_points):
-        if progress_callback:
-            progress_callback(i / len(all_points))
+    best = {"distance": float("inf"), "point": None, "geom_idx": None, "duration": None}
 
-        d, t = get_route_fast(client_lon, client_lat, lon, lat)
+    total = len(tasks)
+    completed = 0
 
-        if d and d < best["distance"]:
-            best.update({
-                "distance": d,
-                "point": (lon, lat),
-                "geom_idx": idx,
-                "duration": t
-            })
+    # 🔥 PARALELIZACIÓN
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(get_route_fast, client_lon, client_lat, lon, lat): (idx, lon, lat)
+            for idx, lon, lat in tasks
+        }
+
+        for future in as_completed(futures):
+            idx, lon, lat = futures[future]
+
+            try:
+                d, t = future.result()
+                if d and d < best["distance"]:
+                    best.update({
+                        "distance": d,
+                        "point": (lon, lat),
+                        "geom_idx": idx,
+                        "duration": t
+                    })
+            except:
+                pass
+
+            completed += 1
+            if progress_callback:
+                progress_callback(completed / total)
 
     return best
 
