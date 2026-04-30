@@ -7,31 +7,62 @@ from geo_engine_h3 import GeoEngineH3
 from routing import get_route
 
 st.set_page_config(layout="wide")
-st.title("🚀 CAPEX ENGINE PRO (H3 Edition)")
+st.title("🚀 CAPEX ENGINE PRO (TEST MODE)")
 
 engine = GeoEngineH3(resolution=8)
 geometries = []
 
-# ---------------- LOAD ----------------
-file = st.file_uploader("GeoJSON")
+# ---------------- DATA SOURCE ----------------
+st.sidebar.title("Data Source")
 
-if file:
+mode = st.sidebar.radio(
+    "Choose data source",
+    ["Local file (recommended)", "Upload file"]
+)
 
-    data = json.loads(file.read())
-    geometries = [shape(f["geometry"]) for f in data["features"]]
+data = None
 
-    st.success(f"{len(geometries)} geometries loaded")
+# -------- LOCAL FILE (RECOMENDADO) --------
+if mode == "Local file (recommended)":
+
+    path = st.text_input("Path to GeoJSON", "data/sample.geojson")
+
+    if st.button("Load local file"):
+
+        try:
+            with open(path) as f:
+                data = json.load(f)
+
+            geometries = [shape(f["geometry"]) for f in data["features"]]
+
+            st.success(f"{len(geometries)} geometries loaded (LOCAL)")
+
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+# -------- UPLOAD (solo para archivos pequeños) --------
+else:
+
+    file = st.file_uploader("Upload GeoJSON")
+
+    if file:
+        data = json.loads(file.read())
+        geometries = [shape(f["geometry"]) for f in data["features"]]
+
+        st.success(f"{len(geometries)} geometries loaded (UPLOAD)")
+
+# ---------------- BUILD INDEX ----------------
+if geometries:
 
     if st.button("Build H3 Index"):
 
-        with st.spinner("Building H3 index..."):
+        with st.spinner("Building index..."):
             engine.build(geometries)
 
-        st.success("H3 Index ready 🚀")
+        st.success("Index ready 🚀")
 
-
-# ---------------- CLIENT ----------------
-coords = st.text_input("lat,lon")
+# ---------------- QUERY ----------------
+coords = st.text_input("lat,lon", "10.99384,-74.79639")
 
 if coords and engine.index:
 
@@ -67,24 +98,26 @@ if coords and engine.index:
 
         layers = []
 
+        # Cliente
         layers.append(pdk.Layer(
             "ScatterplotLayer",
             data=[{"position": [lon, lat]}],
             get_position="position",
-            get_radius= 15,
+            get_radius=15,
             get_fill_color=[255, 0, 0]
         ))
 
+        # Punto más cercano
         layers.append(pdk.Layer(
             "ScatterplotLayer",
             data=[{"position": list(best)}],
             get_position="position",
             get_radius=15,
-            get_fill_color= [0, 255, 0]
+            get_fill_color=[0, 255, 0]
         ))
 
+        # Ruta
         if best_route:
-
             layers.append(pdk.Layer(
                 "PathLayer",
                 data=[{"path": best_route}],
