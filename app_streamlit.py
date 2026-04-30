@@ -3,13 +3,14 @@ import json
 import pydeck as pdk
 from shapely.geometry import shape
 
-from geo_engine import GeoEngine
+from geo_engine_h3 import GeoEngineH3
 from routing import get_route
 
 st.set_page_config(layout="wide")
-st.title("🚀 CAPEX ENGINE PRO")
+st.title("🚀 CAPEX ENGINE PRO (H3 Edition)")
 
-engine = GeoEngine()
+engine = GeoEngineH3(resolution=8)
+geometries = []
 
 # ---------------- LOAD ----------------
 file = st.file_uploader("GeoJSON")
@@ -17,23 +18,22 @@ file = st.file_uploader("GeoJSON")
 if file:
 
     data = json.loads(file.read())
-
     geometries = [shape(f["geometry"]) for f in data["features"]]
 
     st.success(f"{len(geometries)} geometries loaded")
 
-    if st.button("Build Spatial Index"):
+    if st.button("Build H3 Index"):
 
-        with st.spinner("Building index..."):
+        with st.spinner("Building H3 index..."):
             engine.build(geometries)
 
-        st.success("Index ready")
+        st.success("H3 Index ready 🚀")
 
 
 # ---------------- CLIENT ----------------
 coords = st.text_input("lat,lon")
 
-if coords and engine.tree:
+if coords and engine.index:
 
     lat, lon = map(float, coords.split(","))
 
@@ -45,7 +45,7 @@ if coords and engine.tree:
     best_d = float("inf")
     best_route = None
 
-    for dist, idx in results:
+    for idx in results:
 
         g = geometries[idx]
 
@@ -71,16 +71,16 @@ if coords and engine.tree:
             "ScatterplotLayer",
             data=[{"position": [lon, lat]}],
             get_position="position",
-            get_radius=15,
-            get_fill_color=[255, 0, 0]
+            get_radius": 15,
+            get_fill_color": [255, 0, 0]
         ))
 
         layers.append(pdk.Layer(
             "ScatterplotLayer",
             data=[{"position": list(best)}],
             get_position="position",
-            get_radius=15,
-            get_fill_color=[0, 255, 0]
+            get_radius": 15,
+            get_fill_color": [0, 255, 0]
         ))
 
         if best_route:
