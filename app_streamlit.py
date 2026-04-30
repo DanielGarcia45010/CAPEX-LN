@@ -71,16 +71,16 @@ if coords and engine.index:
             "ScatterplotLayer",
             data=[{"position": [lon, lat]}],
             get_position="position",
-            get_radius": 15,
-            get_fill_color": [255, 0, 0]
+            get_radius= 15,
+            get_fill_color=[255, 0, 0]
         ))
 
         layers.append(pdk.Layer(
             "ScatterplotLayer",
             data=[{"position": list(best)}],
             get_position="position",
-            get_radius": 15,
-            get_fill_color": [0, 255, 0]
+            get_radius=15,
+            get_fill_color= [0, 255, 0]
         ))
 
         if best_route:
