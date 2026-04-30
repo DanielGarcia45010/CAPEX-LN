@@ -1,7 +1,4 @@
-from shapely.geometry import shape
-
-
-def densify_geometry(geom, step=0.0005):
+def densify_geometry(geom, step=0.001):
 
     try:
 
