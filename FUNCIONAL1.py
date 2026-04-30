@@ -225,7 +225,7 @@ def main():
         def update(p):
             progress.progress(p)
 
-        result = find_best_route(geoms, lon, lat, max_candidates, update)
+        result = find_best_route_parallel(geoms, lon, lat, max_candidates, update)
 
         if not result or not result["point"]:
             st.error("No se encontró ruta")
