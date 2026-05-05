@@ -2,133 +2,97 @@ import streamlit as st
 import json
 import pydeck as pdk
 from shapely.geometry import shape
+from collections import defaultdict
 
-from geo_engine import GeoEngine
+from geo_engine_h3 import H3GeoEngine
+from capex_scoring import capex_score
 
 st.set_page_config(layout="wide")
-st.title("🚀 CAPEX ENGINE PRO - NETWORK VIEW")
+st.title("🚀 CAPEX ENGINE H3 PRO")
 
-# ---------------- ENGINE ----------------
-engine = GeoEngine()
-
-# ---------------- LOAD GEOMETRIES ----------------
+# ---------------- LOAD ----------------
 @st.cache_data
-def load_geometries():
-    path = "test.json"
-
-    with open(path, "r", encoding="utf-8") as f:
+def load_data():
+    with open("test.json", "r", encoding="utf-8") as f:
         data = json.load(f)
-
     return [shape(f["geometry"]) for f in data["features"]]
 
-geometries = load_geometries()
+geometries = load_data()
 
-st.success(f"📦 Geometries loaded: {len(geometries):,}")
+st.success(f"{len(geometries)} geometries loaded")
 
-# ---------------- BUILD INDEX ----------------
-if engine.tree is None:
-    with st.spinner("⚙️ Building spatial index..."):
-        engine.build(geometries)
-    st.success("✅ Index ready")
+# ---------------- ENGINE ----------------
+engine = H3GeoEngine(resolution=9)
+engine.build(geometries)
 
 # ---------------- INPUT ----------------
-coords = st.text_input("📍 lat,lon", "10.99384,-74.79639")
+coords = st.text_input("lat,lon (ej: 4.71,-74.07)")
 
 if coords:
 
     lat, lon = map(float, coords.split(","))
 
-    results = engine.query(lon, lat)
+    candidates = engine.query(lon, lat)
 
-    st.write("🔎 Candidates:", len(results))
+    st.write("Candidates H3:", len(candidates))
 
-    # ---------------- FIND BEST ----------------
-    best = None
-    best_d = float("inf")
+    best_score = -1
+    best_point = None
 
-    for dist, idx in results:
+    # densidad por celda
+    density_map = defaultdict(int)
+
+    for h, idx in candidates:
+        density_map[h] += 1
+
+    for h, idx in candidates:
 
         g = geometries[idx]
+        c = g.centroid
 
-        try:
-            c = g.centroid
+        # distancia simple
+        d = ((lon - c.x)**2 + (lat - c.y)**2) ** 0.5 * 111320
 
-            # distancia simple (rápida)
-            d = ((lon - c.x)**2 + (lat - c.y)**2) ** 0.5 * 111320
+        density = density_map[h]
 
-            if d < best_d:
-                best_d = d
-                best = (c.x, c.y)
+        presence_bonus = 1 if density > 3 else 0
 
-        except:
-            continue
+        score = capex_score(d, density, presence_bonus)
 
-    # ---------------- MAP ----------------
-    if best:
+        if score > best_score:
+            best_score = score
+            best_point = (c.x, c.y)
 
-        st.success(f"🏁 Best distance: {best_d:.0f} m")
+    # ---------------- VISUAL ----------------
+    layers = []
 
-        layers = []
+    # cliente
+    layers.append(pdk.Layer(
+        "ScatterplotLayer",
+        data=[{"position": [lon, lat]}],
+        get_position="position",
+        get_radius=120,
+        get_fill_color=[255, 0, 0]
+    ))
 
-        # 🔴 CLIENTE
-        layers.append(pdk.Layer(
-            "ScatterplotLayer",
-            data=[{"position": [lon, lat]}],
-            get_position="position",
-            get_radius=60,
-            get_fill_color=[255, 0, 0],
-        ))
-
-        # 🟢 RED EXISTENTE (INFRAESTRUCTURA)
-        network_points = []
-
-        for g in geometries:
-
-            try:
-
-                if g.geom_type == "Point":
-                    network_points.append([g.x, g.y])
-
-                elif g.geom_type in ["LineString", "LinearRing"]:
-                    coords_list = list(g.coords)
-                    network_points.append(coords_list[0])
-                    network_points.append(coords_list[-1])
-
-                elif g.geom_type == "Polygon":
-                    c = g.centroid
-                    network_points.append([c.x, c.y])
-
-            except:
-                continue
+    # mejor nodo red (VERDE)
+    if best_point:
 
         layers.append(pdk.Layer(
             "ScatterplotLayer",
-            data=[{"position": p} for p in network_points],
+            data=[{"position": list(best_point)}],
             get_position="position",
-            get_radius=25,
-            get_fill_color=[0, 200, 0],   # 🟢 VERDE = RED
-            pickable=False
+            get_radius=120,
+            get_fill_color=[0, 255, 0]
         ))
 
-        # 🔵 CONEXIÓN CLIENTE → RED
-        layers.append(pdk.Layer(
-            "LineLayer",
-            data=[{
-                "source": [lon, lat],
-                "target": list(best)
-            }],
-            get_source_position="source",
-            get_target_position="target",
-            get_color=[0, 120, 255],
-            get_width=3
-        ))
+        st.success(f"CAPEX SCORE: {best_score:.4f}")
 
-        # ---------------- VIEW ----------------
-        st.pydeck_chart(pdk.Deck(
-            layers=layers,
-            initial_view_state=pdk.ViewState(
-                latitude=lat,
-                longitude=lon,
-                zoom=12
-            )
-        ))
+    st.pydeck_chart(pdk.Deck(
+        layers=layers,
+        initial_view_state=pdk.ViewState(
+            latitude=lat,
+            longitude=lon,
+            zoom=11
+        )
+    ))
