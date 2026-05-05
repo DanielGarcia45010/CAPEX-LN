@@ -8,10 +8,16 @@ class H3GeoEngine:
         self.resolution = resolution
         self.index = defaultdict(list)
         self.centroids = []
+        self.geometries = []
 
     def build(self, geometries):
 
+        self.geometries = geometries
+        self.centroids = []
+        self.index.clear()
+
         for i, geom in enumerate(geometries):
+
             try:
                 c = geom.centroid
                 self.centroids.append((c.x, c.y))
@@ -22,7 +28,7 @@ class H3GeoEngine:
             except:
                 continue
 
-    def query(self, lon, lat, max_k=5, min_results=40):
+    def query(self, lon, lat, max_k=4):
 
         center = h3.latlng_to_cell(lat, lon, self.resolution)
         results = []
@@ -34,7 +40,7 @@ class H3GeoEngine:
                     for idx in self.index[h]:
                         results.append((h, idx))
 
-            if len(results) >= min_results:
+            if len(results) > 50:
                 break
 
         return results
