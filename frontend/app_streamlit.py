@@ -4,7 +4,10 @@ import pydeck as pdk
 import requests
 from shapely.geometry import shape
 from core.geo_engine_h3 import H3GeoEngine
+import sys
+import os
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 API = "http://localhost:8000/score"
 
 st.set_page_config(layout="wide")
