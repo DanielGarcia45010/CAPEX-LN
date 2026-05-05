@@ -1,7 +1,7 @@
 import math
 
 
-def capex_score(distance_m, density, presence):
+def capex_score(distance_m, density, presence_bonus):
 
     distance_m = max(distance_m, 1)
 
@@ -11,5 +11,5 @@ def capex_score(distance_m, density, presence):
     return (
         0.55 * distance_score +
         0.30 * density_score +
-        0.15 * presence
+        0.15 * presence_bonus
     )
