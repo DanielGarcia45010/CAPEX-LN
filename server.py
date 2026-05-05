@@ -1,45 +1,69 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from dotenv import load_dotenv
-from openai import OpenAI
-import os, json
+from fastapi import FastAPI
+from pydantic import BaseModel
+import json
 
-load_dotenv()
-
-app = Flask(__name__)
-CORS(app)
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-ASSISTANT_ID = os.getenv("ASSISTANT_ID")
+from core.engine import GeoEngine
+from core.scoring import capex_score
+from core.geo import haversine
+from core.cache import get_cache, set_cache
 
 
-@app.get("/")
-def home():
-    return {"status": "running"}
+app = FastAPI(title="CAPEX Cloud Engine")
+
+engine = GeoEngine(resolution=9)
 
 
-@app.post("/feasibility")
-def feasibility():
-
-    data = request.get_json()
-
-    thread = client.beta.threads.create(
-        messages=[{"role": "user", "content": json.dumps(data)}]
-    )
-
-    run = client.beta.threads.runs.create(
-        thread_id=thread.id,
-        assistant_id=ASSISTANT_ID
-    )
-
-    run = client.beta.threads.runs.retrieve(thread.id, run.id)
-
-    msgs = client.beta.threads.messages.list(thread.id)
-
-    return jsonify({
-        "response": msgs.data[0].content[0].text.value
-    })
+class Query(BaseModel):
+    lat: float
+    lon: float
 
 
-if __name__ == "__main__":
-    app.run(port=2500, debug=True)
+@app.on_event("startup")
+def load():
+    # aquí podrías cargar desde S3 / DB
+    pass
+
+
+@app.post("/score")
+def score(query: Query):
+
+    cache_key = f"{query.lat}_{query.lon}"
+    cached = get_cache(cache_key)
+
+    if cached:
+        return cached
+
+    candidates = engine.query(query.lon, query.lat)
+
+    best_score = -1
+    best = None
+
+    density_map = {}
+
+    for h, idx in candidates:
+        density_map[h] = density_map.get(h, 0) + 1
+
+    for h, idx in candidates:
+
+        x, y = engine.centroids[idx]
+
+        d = haversine(query.lon, query.lat, x, y)
+
+        score = capex_score(
+            d,
+            density_map[h],
+            1 if density_map[h] > 3 else 0
+        )
+
+        if score > best_score:
+            best_score = score
+            best = (x, y)
+
+    result = {
+        "score": best_score,
+        "location": best
+    }
+
+    set_cache(cache_key, result)
+
+    return result
