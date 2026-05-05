@@ -33,7 +33,7 @@ def haversine(lon1, lat1, lon2, lat2):
 st.set_page_config(layout="wide")
 st.title("🚀 CAPEX ENGINE H3 PRO")
 
-# ---------------- LOAD DATA ----------------
+# ---------------- LOAD ----------------
 @st.cache_data
 def load_data():
     with open("test.json", "r", encoding="utf-8") as f:
@@ -118,10 +118,9 @@ if coords:
 
         st.success(f"CAPEX SCORE: {best_score:.4f}")
 
-    # ---------------- 🟢 RED VISIBLE ----------------
+    # 🟢 RED COMPLETA (ESTABLE Y VISUAL)
     red_points = []
 
-    # usamos geometrías directamente (ESTO ES LO QUE EVITA QUE SE ROMPA)
     for i, geom in enumerate(geometries):
 
         try:
@@ -134,7 +133,7 @@ if coords:
         except:
             continue
 
-        # control de performance
+        # control performance
         if i > 8000:
             break
 
@@ -147,7 +146,7 @@ if coords:
         pickable=False
     ))
 
-    # ---------------- MAP ----------------
+    # ---------------- MAPA BASE (CLAVE) ----------------
     st.pydeck_chart(pdk.Deck(
         layers=layers,
         initial_view_state=pdk.ViewState(
@@ -155,5 +154,7 @@ if coords:
             longitude=lon,
             zoom=11
         ),
-        map_style="mapbox://styles/mapbox/light-v9"
+
+        # 🔥 ESTO RESTAURA LA CIUDAD (NO MAPBOX TOKEN REQUIRED)
+        map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
     ))
