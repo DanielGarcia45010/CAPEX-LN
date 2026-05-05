@@ -2,9 +2,10 @@ import streamlit as st
 import requests
 import pydeck as pdk
 
-API_URL = "http://localhost:8000/score"
+API = "http://localhost:8000/score"
 
-st.title("CAPEX Cloud Viewer")
+st.set_page_config(layout="wide")
+st.title("🚀 CAPEX ENGINE")
 
 coords = st.text_input("lat,lon")
 
@@ -12,7 +13,7 @@ if coords:
 
     lat, lon = map(float, coords.split(","))
 
-    res = requests.post(API_URL, json={
+    res = requests.post(API, json={
         "lat": lat,
         "lon": lon
     }).json()
@@ -31,13 +32,15 @@ if coords:
         get_fill_color=[255, 0, 0]
     ))
 
-    layers.append(pdk.Layer(
-        "ScatterplotLayer",
-        data=[{"position": best}],
-        get_position="position",
-        get_radius=120,
-        get_fill_color=[0, 255, 0]
-    ))
+    if best:
+
+        layers.append(pdk.Layer(
+            "ScatterplotLayer",
+            data=[{"position": best}],
+            get_position="position",
+            get_radius=120,
+            get_fill_color=[0, 255, 0]
+        ))
 
     st.pydeck_chart(pdk.Deck(
         layers=layers,
