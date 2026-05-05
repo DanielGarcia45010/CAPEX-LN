@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import json
+from shapely.geometry import shape
 
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
@@ -10,14 +12,27 @@ app = FastAPI()
 engine = H3GeoEngine(resolution=9)
 
 
+# ---------------- INPUT MODEL ----------------
 class Query(BaseModel):
     lat: float
     lon: float
 
 
+# ---------------- LOAD DATA (CRÍTICO) ----------------
+def load_geometries():
+    with open("test.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return [shape(f["geometry"]) for f in data["features"]]
+
+
+geometries = load_geometries()
+engine.build(geometries)
+
+
+# ---------------- ROUTES ----------------
 @app.get("/")
 def home():
-    return {"status": "running"}
+    return {"status": "running", "geometries": len(geometries)}
 
 
 @app.post("/score")
@@ -26,7 +41,10 @@ def score(query: Query):
     candidates = engine.query(query.lon, query.lat)
 
     if not candidates:
-        return {"score": 0, "location": None}
+        return {
+            "score": 0,
+            "location": None
+        }
 
     density_map = {}
 
