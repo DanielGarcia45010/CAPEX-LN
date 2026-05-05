@@ -1,12 +1,11 @@
 import h3
 from collections import defaultdict
-from shapely.geometry import shape
 
 class H3GeoEngine:
 
     def __init__(self, resolution=9):
         self.resolution = resolution
-        self.index = defaultdict(list)  # h3_cell -> geometries
+        self.index = defaultdict(list)
 
     def build(self, geometries):
 
@@ -20,17 +19,24 @@ class H3GeoEngine:
             except:
                 continue
 
-    def query(self, lon, lat, k_ring=2):
+    def query(self, lon, lat, k_ring=2, max_expansion=6):
 
         center = h3.latlng_to_cell(lat, lon, self.resolution)
 
-        neighbors = h3.grid_disk(center, k_ring)
-
         results = []
 
-        for h in neighbors:
-            if h in self.index:
-                for idx in self.index[h]:
-                    results.append((h, idx))
+        # 🔥 expansión progresiva inteligente
+        for k in range(1, max_expansion + 1):
+
+            neighbors = h3.grid_disk(center, k)
+
+            for h in neighbors:
+                if h in self.index:
+                    for idx in self.index[h]:
+                        results.append((h, idx))
+
+            # si ya hay suficientes candidatos, corta
+            if len(results) >= 30:
+                break
 
         return results
