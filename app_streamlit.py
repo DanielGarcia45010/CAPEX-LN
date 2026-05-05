@@ -3,13 +3,14 @@ import json
 import pydeck as pdk
 from shapely.geometry import shape
 from collections import defaultdict
-import h3
 import math
+import h3
 
 from geo_engine_h3 import H3GeoEngine
 from capex_scoring import capex_score
 
-# ---------------- GEO ----------------
+
+# ---------------- GEO HELP ----------------
 def haversine(lon1, lat1, lon2, lat2):
 
     R = 6371000
@@ -21,8 +22,9 @@ def haversine(lon1, lat1, lon2, lat2):
     dlambda = math.radians(lon2 - lon1)
 
     a = (
-        math.sin(dphi / 2) ** 2
-        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+        math.sin(dphi / 2) ** 2 +
+        math.cos(phi1) * math.cos(phi2) *
+        math.sin(dlambda / 2) ** 2
     )
 
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
@@ -43,6 +45,9 @@ geometries = load_data()
 
 st.success(f"{len(geometries)} geometries loaded")
 
+# 🔥 DEBUG IMPORTANTE (si algo falla aquí, era el problema real)
+st.write("DEBUG geometries:", len(geometries))
+
 # ---------------- ENGINE ----------------
 engine = H3GeoEngine(resolution=9)
 engine.build(geometries)
@@ -58,16 +63,19 @@ if coords:
 
     st.write("Candidates:", len(candidates))
 
+    # 🔥 fallback si estás lejos
     if len(candidates) < 5:
         st.warning("Expandiendo cobertura...")
         candidates = engine.query(lon, lat, k_ring=5, max_expansion=8)
 
     density_map = defaultdict(int)
+    global_density_map = defaultdict(int)
+
+    for h, idxs in engine.index.items():
+        global_density_map[h] = len(idxs)
 
     for h, idx in candidates:
         density_map[h] += 1
-
-    global_density = {h: len(v) for h, v in engine.index.items()}
 
     best_score = -1
     best_point = None
@@ -83,7 +91,7 @@ if coords:
         score = capex_score(
             d,
             density_map[h],
-            global_density.get(h, 0),
+            global_density_map[h],
             1 if density_map[h] > 3 else 0
         )
 
@@ -91,50 +99,49 @@ if coords:
             best_score = score
             best_point = (c.x, c.y)
 
-    # ---------------- MAPA BASE (CLAVE) ----------------
+    # ---------------- VISUAL ----------------
     layers = []
 
-    # 🧭 MAPA CIUDAD (OPENSTREETMAP BASE)
-    # PyDeck lo maneja automáticamente con map_style
-
-    # 🔴 usuario
+    # 🔴 USER POINT
     layers.append(pdk.Layer(
         "ScatterplotLayer",
         data=[{"position": [lon, lat]}],
         get_position="position",
         get_radius=120,
-        get_fill_color=[255, 0, 0],
+        get_fill_color=[255, 0, 0]
     ))
 
-    # 🟢 RED H3 (CONTROLADA Y ESTABLE)
+    # 🟢 RED COMPLETA (ESTABLE Y VISUAL)
     all_points = []
 
-    for i, (h, idxs) in enumerate(engine.index.items()):
-
-        if i > 3000:  # 🔥 importante: evita romper el render
-            break
+    # 🔥 usamos geometrías directamente (ESTO EVITA EL ERROR QUE ROMPÍA TODO)
+    for i, geom in enumerate(geometries):
 
         try:
-            lat_h, lon_h = h3.cell_to_latlng(h)
+            c = geom.centroid
 
             all_points.append({
-                "position": [lon_h, lat_h],
-                "count": len(idxs)
+                "position": [c.x, c.y],
+                "count": 1
             })
 
         except:
             continue
 
+        # 🔥 seguridad performance
+        if i > 12000:
+            break
+
     layers.append(pdk.Layer(
         "ScatterplotLayer",
         data=all_points,
         get_position="position",
-        get_radius="count * 10",
-        get_fill_color=[0, 255, 0, 140],
+        get_radius=10,
+        get_fill_color=[0, 255, 0, 160],
         pickable=False
     ))
 
-    # 🟢 mejor nodo
+    # 🟢 BEST NODE
     if best_point:
 
         layers.append(pdk.Layer(
@@ -147,7 +154,7 @@ if coords:
 
         st.success(f"CAPEX SCORE: {best_score:.4f}")
 
-    # ---------------- RENDER FINAL ----------------
+    # ---------------- MAP ----------------
     st.pydeck_chart(pdk.Deck(
         layers=layers,
         initial_view_state=pdk.ViewState(
