@@ -1,60 +1,36 @@
 import h3
 from collections import defaultdict
-from shapely.geometry import Point
+from shapely.geometry import shape
 
-class GeoEngineH3:
+class H3GeoEngine:
 
-    def __init__(self, resolution=8):
+    def __init__(self, resolution=9):
         self.resolution = resolution
-        self.index = defaultdict(list)
-        self.geometries = []
-
-    def _to_h3(self, lon, lat):
-        return h3.latlng_to_cell(lat, lon, self.resolution)
+        self.index = defaultdict(list)  # h3_cell -> geometries
 
     def build(self, geometries):
-
-        self.index.clear()
-        self.geometries = geometries
 
         for i, geom in enumerate(geometries):
 
             try:
-
-                if geom.geom_type == "Point":
-                    h = self._to_h3(geom.x, geom.y)
-                    self.index[h].append(i)
-
-                elif geom.geom_type in ["LineString", "LinearRing"]:
-                    coords = list(geom.coords)
-                    for lon, lat in coords[::max(1, len(coords)//5)]:
-                        h = self._to_h3(lon, lat)
-                        self.index[h].append(i)
-
-                elif geom.geom_type == "Polygon":
-                    c = geom.centroid
-                    h = self._to_h3(c.x, c.y)
-                    self.index[h].append(i)
-
-                elif geom.geom_type.startswith("Multi"):
-                    for g in geom.geoms:
-                        c = g.centroid
-                        h = self._to_h3(c.x, c.y)
-                        self.index[h].append(i)
+                c = geom.centroid
+                h = h3.latlng_to_cell(c.y, c.x, self.resolution)
+                self.index[h].append(i)
 
             except:
                 continue
 
-    def query(self, lon, lat, k=30):
+    def query(self, lon, lat, k_ring=2):
 
-        center = self._to_h3(lon, lat)
+        center = h3.latlng_to_cell(lat, lon, self.resolution)
 
-        neighbors = h3.grid_disk(center, 1)
+        neighbors = h3.grid_disk(center, k_ring)
 
-        candidates = set()
+        results = []
 
-        for cell in neighbors:
-            if cell in self.index:
-                candidates.update(self.index[cell])
+        for h in neighbors:
+            if h in self.index:
+                for idx in self.index[h]:
+                    results.append((h, idx))
 
-        return list(candidates)
+        return results
