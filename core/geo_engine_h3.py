@@ -7,10 +7,9 @@ class H3GeoEngine:
     def __init__(self, resolution=9):
         self.resolution = resolution
         self.index = defaultdict(list)
+        self.centroids = []
 
     def build(self, geometries):
-
-        self.centroids = []
 
         for i, geom in enumerate(geometries):
             try:
@@ -23,12 +22,11 @@ class H3GeoEngine:
             except:
                 continue
 
-    def query(self, lon, lat, max_k=6, min_results=40):
+    def query(self, lon, lat, max_k=5, min_results=40):
 
         center = h3.latlng_to_cell(lat, lon, self.resolution)
         results = []
 
-        # expansión progresiva controlada
         for k in range(1, max_k + 1):
 
             for h in h3.grid_disk(center, k):
