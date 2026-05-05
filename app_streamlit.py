@@ -2,27 +2,19 @@ import streamlit as st
 import json
 import pydeck as pdk
 from shapely.geometry import shape
-import pandas as pd
 
 from geo_engine import GeoEngine
-from densifier import densify_geometry
 
 st.set_page_config(layout="wide")
-st.title("🚀 CAPEX ENGINE PRO + HEATMAP")
+st.title("🚀 CAPEX ENGINE PRO - NETWORK VIEW")
 
+# ---------------- ENGINE ----------------
 engine = GeoEngine()
 
-# ---------------- CONFIG ----------------
-st.sidebar.header("⚙️ Configuración")
-
-USE_HEATMAP = st.sidebar.checkbox("Activar Heatmap", value=True)
-DENSIFY = st.sidebar.checkbox("Densificar geometrías", value=False)
-MAX_POINTS = st.sidebar.slider("Máx puntos heatmap", 1000, 100000, 30000)
-
-# ---------------- LOAD DESDE DISCO ----------------
+# ---------------- LOAD GEOMETRIES ----------------
 @st.cache_data
 def load_geometries():
-    path = "test.json" 
+    path = "test.json"
 
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -31,14 +23,16 @@ def load_geometries():
 
 geometries = load_geometries()
 
-st.success(f"{len(geometries)} geometries loaded")
+st.success(f"📦 Geometries loaded: {len(geometries):,}")
 
+# ---------------- BUILD INDEX ----------------
 if engine.tree is None:
-    with st.spinner("Building spatial index..."):
+    with st.spinner("⚙️ Building spatial index..."):
         engine.build(geometries)
-    st.success("Index ready")
+    st.success("✅ Index ready")
 
-coords = st.text_input("lat,lon", "10.99384,-74.79639")
+# ---------------- INPUT ----------------
+coords = st.text_input("📍 lat,lon", "10.99384,-74.79639")
 
 if coords:
 
@@ -46,8 +40,9 @@ if coords:
 
     results = engine.query(lon, lat)
 
-    st.write("Candidates:", len(results))
+    st.write("🔎 Candidates:", len(results))
 
+    # ---------------- FIND BEST ----------------
     best = None
     best_d = float("inf")
 
@@ -58,7 +53,7 @@ if coords:
         try:
             c = g.centroid
 
-            # 🚀 distancia rápida (sin routing)
+            # distancia simple (rápida)
             d = ((lon - c.x)**2 + (lat - c.y)**2) ** 0.5 * 111320
 
             if d < best_d:
@@ -68,63 +63,67 @@ if coords:
         except:
             continue
 
+    # ---------------- MAP ----------------
     if best:
 
-        st.success(f"Best distance: {best_d:.0f} m")
+        st.success(f"🏁 Best distance: {best_d:.0f} m")
 
         layers = []
 
-        
+        # 🔴 CLIENTE
         layers.append(pdk.Layer(
             "ScatterplotLayer",
             data=[{"position": [lon, lat]}],
             get_position="position",
-            get_radius=50,
+            get_radius=60,
             get_fill_color=[255, 0, 0],
         ))
 
+        # 🟢 RED EXISTENTE (INFRAESTRUCTURA)
+        network_points = []
+
+        for g in geometries:
+
+            try:
+
+                if g.geom_type == "Point":
+                    network_points.append([g.x, g.y])
+
+                elif g.geom_type in ["LineString", "LinearRing"]:
+                    coords_list = list(g.coords)
+                    network_points.append(coords_list[0])
+                    network_points.append(coords_list[-1])
+
+                elif g.geom_type == "Polygon":
+                    c = g.centroid
+                    network_points.append([c.x, c.y])
+
+            except:
+                continue
 
         layers.append(pdk.Layer(
             "ScatterplotLayer",
-            data=[{"position": list(best)}],
+            data=[{"position": p} for p in network_points],
             get_position="position",
-            get_radius=50,
-            get_fill_color=[0, 255, 0],
+            get_radius=25,
+            get_fill_color=[0, 200, 0],   # 🟢 VERDE = RED
+            pickable=False
         ))
 
-        if USE_HEATMAP:
+        # 🔵 CONEXIÓN CLIENTE → RED
+        layers.append(pdk.Layer(
+            "LineLayer",
+            data=[{
+                "source": [lon, lat],
+                "target": list(best)
+            }],
+            get_source_position="source",
+            get_target_position="target",
+            get_color=[0, 120, 255],
+            get_width=3
+        ))
 
-            st.info("Generating heatmap...")
-
-            points = []
-
-            for g in geometries:
-
-                try:
-                    if DENSIFY:
-                        for p in densify_geometry(g, step=0.001):
-                            points.append(p)
-                    else:
-                        c = g.centroid
-                        points.append((c.x, c.y))
-
-                except:
-                    continue
-
-            points = points[:MAX_POINTS]
-
-            df = pd.DataFrame(points, columns=["lon", "lat"])
-
-            heat_layer = pdk.Layer(
-                "HeatmapLayer",
-                data=df,
-                get_position='[lon, lat]',
-                aggregation=pdk.types.String("MEAN"),
-                get_weight=1,
-            )
-
-            layers.append(heat_layer)
-
+        # ---------------- VIEW ----------------
         st.pydeck_chart(pdk.Deck(
             layers=layers,
             initial_view_state=pdk.ViewState(
