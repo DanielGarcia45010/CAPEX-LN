@@ -33,7 +33,7 @@ if coords:
 
     layers.append(pdk.Layer(
         "ScatterplotLayer",
-        data=[{"position": best]},
+        data=["position": best],
         get_position="position",
         get_radius=120,
         get_fill_color=[0, 255, 0]
