@@ -9,7 +9,7 @@ from geo_engine_h3 import H3GeoEngine
 from capex_scoring import capex_score
 
 
-# ---------------- DISTANCIA (MEJOR QUE EUCLIDEANA) ----------------
+# ---------------- DISTANCIA REAL ----------------
 def haversine(lon1, lat1, lon2, lat2):
 
     R = 6371000
@@ -29,11 +29,11 @@ def haversine(lon1, lat1, lon2, lat2):
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-# ---------------- UI ----------------
+# ---------------- APP ----------------
 st.set_page_config(layout="wide")
 st.title("🚀 CAPEX ENGINE H3 PRO")
 
-# ---------------- LOAD ----------------
+# ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
     with open("test.json", "r", encoding="utf-8") as f:
@@ -59,7 +59,7 @@ if coords:
 
     st.write("Candidates H3:", len(candidates))
 
-    # 🔥 fallback sin romper lógica original
+    # fallback si estás lejos
     if len(candidates) < 5:
         candidates = engine.query(lon, lat, k_ring=4)
 
@@ -71,7 +71,7 @@ if coords:
     for h, idx in candidates:
         density_map[h] += 1
 
-    # ---------------- SCORE ORIGINAL + MEJORADO ----------------
+    # ---------------- SCORE ----------------
     for h, idx in candidates:
 
         g = geometries[idx]
@@ -79,20 +79,24 @@ if coords:
 
         d = haversine(lon, lat, c.x, c.y)
 
+        density = density_map[h]
+
+        presence_bonus = 1 if density > 3 else 0
+
         score = capex_score(
             d,
-            density_map[h],
-            1 if density_map[h] > 3 else 0
+            density,
+            presence_bonus
         )
 
         if score > best_score:
             best_score = score
             best_point = (c.x, c.y)
 
-    # ---------------- VISUAL (ESTABLE) ----------------
+    # ---------------- VISUAL ----------------
     layers = []
 
-    # 🔴 USER
+    # 🔴 USER POINT
     layers.append(pdk.Layer(
         "ScatterplotLayer",
         data=[{"position": [lon, lat]}],
@@ -114,12 +118,10 @@ if coords:
 
         st.success(f"CAPEX SCORE: {best_score:.4f}")
 
-    # ---------------- 🟢 RED VISIBLE (FIX CRÍTICO) ----------------
-    # 🔥 NO USAMOS H3 INDEX (porque puede estar incompleto)
-    # usamos geometrías directas (ESTO RESTAURA LO QUE TENÍAS)
-
+    # ---------------- 🟢 RED VISIBLE ----------------
     red_points = []
 
+    # usamos geometrías directamente (ESTO ES LO QUE EVITA QUE SE ROMPA)
     for i, geom in enumerate(geometries):
 
         try:
@@ -132,7 +134,8 @@ if coords:
         except:
             continue
 
-        if i > 8000:  # control performance
+        # control de performance
+        if i > 8000:
             break
 
     layers.append(pdk.Layer(
@@ -140,7 +143,8 @@ if coords:
         data=red_points,
         get_position="position",
         get_radius=8,
-        get_fill_color=[0, 255, 0, 140]
+        get_fill_color=[0, 255, 0, 140],
+        pickable=False
     ))
 
     # ---------------- MAP ----------------
