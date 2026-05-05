@@ -1,16 +1,13 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import json
 
-from core.engine import GeoEngine
-from core.scoring import capex_score
-from core.geo import haversine
-from core.cache import get_cache, set_cache
+from core.geo_engine_h3 import H3GeoEngine
+from core.capex_scoring import capex_score
+from core.utils_geo import haversine
 
+app = FastAPI()
 
-app = FastAPI(title="CAPEX Cloud Engine")
-
-engine = GeoEngine(resolution=9)
+engine = H3GeoEngine(resolution=9)
 
 
 class Query(BaseModel):
@@ -18,30 +15,26 @@ class Query(BaseModel):
     lon: float
 
 
-@app.on_event("startup")
-def load():
-    # aquí podrías cargar desde S3 / DB
-    pass
+@app.get("/")
+def home():
+    return {"status": "running"}
 
 
 @app.post("/score")
 def score(query: Query):
 
-    cache_key = f"{query.lat}_{query.lon}"
-    cached = get_cache(cache_key)
-
-    if cached:
-        return cached
-
     candidates = engine.query(query.lon, query.lat)
 
-    best_score = -1
-    best = None
+    if not candidates:
+        return {"score": 0, "location": None}
 
     density_map = {}
 
     for h, idx in candidates:
         density_map[h] = density_map.get(h, 0) + 1
+
+    best_score = -1
+    best_point = None
 
     for h, idx in candidates:
 
@@ -49,21 +42,16 @@ def score(query: Query):
 
         d = haversine(query.lon, query.lat, x, y)
 
-        score = capex_score(
-            d,
-            density_map[h],
-            1 if density_map[h] > 3 else 0
-        )
+        density = density_map[h]
+        presence = 1 if density > 3 else 0
+
+        score = capex_score(d, density, presence)
 
         if score > best_score:
             best_score = score
-            best = (x, y)
+            best_point = [x, y]
 
-    result = {
-        "score": best_score,
-        "location": best
+    return {
+        "score": float(best_score),
+        "location": best_point
     }
-
-    set_cache(cache_key, result)
-
-    return result
