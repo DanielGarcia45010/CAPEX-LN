@@ -1,13 +1,16 @@
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import streamlit as st
 import json
 import pydeck as pdk
 import requests
 from shapely.geometry import shape
-from core.geo_engine_h3 import H3GeoEngine
-import sys
-import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from core.geo_engine_h3 import H3GeoEngine
+
 API = "http://localhost:8000/score"
 
 st.set_page_config(layout="wide")
