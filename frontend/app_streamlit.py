@@ -85,7 +85,7 @@ if coords:
         "ScatterplotLayer",
         data=red_points,
         get_position="position",
-        get_radius": 8,
+        get_radius = 8,
         get_fill_color=[0, 255, 0, 140],
         pickable=False
     ))
