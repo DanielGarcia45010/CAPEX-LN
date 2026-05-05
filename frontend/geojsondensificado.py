@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 from shapely.geometry import shape
-from densifier import densify_geometry
+from utils.densifier import densify_geometry
 
 st.set_page_config(page_title="GeoJSON Pro H3 Ready", layout="wide")
 st.title("🚀 GeoJSON Viewer Optimized")
