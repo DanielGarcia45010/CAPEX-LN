@@ -1,9 +1,9 @@
 import math
 
-R = 6371000
-
 
 def haversine(lon1, lat1, lon2, lat2):
+
+    R = 6371000
 
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
@@ -17,4 +17,4 @@ def haversine(lon1, lat1, lon2, lat2):
         math.sin(dlambda / 2) ** 2
     )
 
-    return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
