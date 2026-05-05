@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from openai import OpenAI
-import os, json, time
+import os, json
 
 load_dotenv()
 
@@ -32,11 +32,7 @@ def feasibility():
         assistant_id=ASSISTANT_ID
     )
 
-    while True:
-        run = client.beta.threads.runs.retrieve(thread.id, run.id)
-        if run.status in ["completed", "failed"]:
-            break
-        time.sleep(0.5)
+    run = client.beta.threads.runs.retrieve(thread.id, run.id)
 
     msgs = client.beta.threads.messages.list(thread.id)
 
