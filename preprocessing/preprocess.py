@@ -1,7 +1,7 @@
 import json
 import os
-import numpy as np
 import pickle
+import numpy as np
 from shapely.geometry import shape
 from scipy.spatial import cKDTree
 
@@ -15,7 +15,6 @@ with open(INPUT, "r", encoding="utf-8") as f:
 
 points = []
 index = []
-centroids = []
 
 for i, f in enumerate(data["features"]):
 
@@ -24,7 +23,6 @@ for i, f in enumerate(data["features"]):
         c = geom.centroid
 
         points.append([c.x, c.y])
-        centroids.append((c.x, c.y))
         index.append(i)
 
     except:
@@ -33,4 +31,4 @@ for i, f in enumerate(data["features"]):
 tree = cKDTree(np.array(points))
 
 with open(OUTPUT, "wb") as f:
-    pickle.dump((tree, index, centroids), f)
+    pickle.dump((tree, index), f)
