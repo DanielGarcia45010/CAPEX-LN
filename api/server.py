@@ -6,6 +6,7 @@ from shapely.geometry import shape
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
 from core.utils_geo import haversine
+from core.feasibility import generate_opportunities
 
 app = FastAPI()
 
@@ -17,6 +18,10 @@ class Query(BaseModel):
     lat: float
     lon: float
 
+class FeasibilityRequest(BaseModel):
+    costoObraCivil: int
+    mrc: int
+    term: int
 
 # ---------------- LOAD DATA (CRÍTICO) ----------------
 def load_geometries():
@@ -73,3 +78,14 @@ def score(query: Query):
         "score": float(best_score),
         "location": best_point
     }
+
+@app.post("/feasibility")
+def feasibility(req: FeasibilityRequest):
+
+    result = generate_opportunities(
+        costo=req.costoObraCivil,
+        mrc_input=req.mrc,
+        term_input=req.term
+    )
+
+    return result
