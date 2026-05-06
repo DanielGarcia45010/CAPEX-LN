@@ -23,6 +23,8 @@ class FeasibilityRequest(BaseModel):
     mrc: int
     term: int
 
+
+
 # ---------------- LOAD DATA (CRÍTICO) ----------------
 def load_geometries():
     with open("test.json", "r", encoding="utf-8") as f:

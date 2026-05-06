@@ -48,6 +48,26 @@ if coords:
 
     best = res["location"]
 
+    st.divider()
+st.subheader("💰 Factibilidad CAPEX")
+
+costo = st.number_input("Costo Obra Civil", value=100000)
+mrc = st.number_input("MRC actual", value=3000)
+term = st.selectbox("Term (meses)", [12, 24, 36])
+
+if st.button("Evaluar factibilidad"):
+
+    res = requests.post("http://localhost:8000/feasibility", json={
+        "costoObraCivil": costo,
+        "mrc": mrc,
+        "term": term
+    }).json()
+
+    st.write("### Resultados")
+
+    for o in res:
+        st.json(o)
+
 
     # ---------------- LAYERS ----------------
     layers = []
