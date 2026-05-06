@@ -98,12 +98,12 @@ if coords:
 
 
     # ---------------- MAP ----------------
-   st.pydeck_chart(pdk.Deck(
-    layers=layers,
-    initial_view_state=pdk.ViewState(
-        latitude=lat,
-        longitude=lon,
-        zoom=11
-    ),
-    map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-))
+    st.pydeck_chart(pdk.Deck(
+        layers=layers,
+        initial_view_state=pdk.ViewState(
+            latitude=lat,
+            longitude=lon,
+            zoom=11
+        ),
+        map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+    ))
