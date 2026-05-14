@@ -37,7 +37,7 @@ if "analysis" not in st.session_state:
 
 
 # =========================================================
-# NORMALIZACIÓN (ROBUSTA)
+# NORMALIZACIÓN
 # =========================================================
 def normalize(text):
     if text is None:
@@ -51,9 +51,6 @@ def normalize(text):
 
 
 def extract_city(result):
-    """
-    Extrae ciudad REAL desde geocoder sin depender de claves inconsistentes.
-    """
     raw = (
         result.get("city")
         or result.get("municipality")
@@ -65,79 +62,49 @@ def extract_city(result):
     if not raw:
         return "bogota"
 
-    # toma primer segmento útil
     city = raw.split(",")[0].strip()
-
-    # limpieza adicional (quita códigos raros)
     city = re.sub(r"\d+", "", city)
+
     return city if city else "bogota"
 
 
 # =========================================================
-# COSTOS (ESTABLE Y SIN RENOMBRES)
+# COSTOS (EXCEL REAL)
 # =========================================================
 @st.cache_data
 def load_costs():
 
-    file_path = "costs.csv"
+    file_path = "costs.xlsx"  # 👈 OBLIGATORIO: archivo real
 
-    # ----------------------------
-    # 1. INTENTA CSV
-    # ----------------------------
-    try:
-        df = pd.read_csv(
-            file_path,
-            sep=None,
-            engine="python",
-            encoding="latin1",
-            on_bad_lines="skip"
-        )
+    df = pd.read_excel(file_path, engine="openpyxl")
 
-        # si parece excel interno, fallará aquí
-        if df.shape[1] == 1:
-            raise ValueError("Probable archivo Excel renombrado")
-
-    except Exception:
-        # ----------------------------
-        # 2. FALLBACK EXCEL
-        # ----------------------------
-        df = pd.read_excel(file_path)
-
-    # ----------------------------
-    # LIMPIEZA OBLIGATORIA
-    # ----------------------------
     df.columns = df.columns.str.strip()
 
+    # validación estricta
     if "Ciudad" not in df.columns or "Valor Unitario" not in df.columns:
         raise ValueError(
-            f"Columnas inválidas: {df.columns}. "
-            "Debe contener 'Ciudad' y 'Valor Unitario'"
+            f"El Excel debe contener columnas: 'Ciudad' y 'Valor Unitario'. "
+            f"Se encontraron: {df.columns}"
         )
 
     df["Ciudad"] = df["Ciudad"].astype(str).str.strip()
 
-    df["Ciudad_norm"] = df["Ciudad"].apply(
-        lambda x: unicodedata.normalize("NFKD", str(x))
-        .encode("ascii", "ignore")
-        .decode("utf-8")
-        .lower()
-        .strip()
-    )
+    df["Ciudad_norm"] = df["Ciudad"].apply(normalize)
 
     df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
 
     return df
 
+
 costs_df = load_costs()
 
 
 def get_unit_cost(city):
+
     city_norm = normalize(city)
 
-    # match exacto primero
     row = costs_df[costs_df["Ciudad_norm"] == city_norm]
 
-    # fallback inteligente
     if row.empty:
         row = costs_df[costs_df["Ciudad_norm"].str.contains(city_norm, na=False)]
 
@@ -222,7 +189,6 @@ if section == "Cotización":
 
         if unit_cost is None:
             st.error(f"No se encontró tarifa para ciudad: {city}")
-            st.write("Ciudades disponibles:")
             st.write(costs_df["Ciudad"].unique())
             st.stop()
 
@@ -283,11 +249,11 @@ if st.session_state.analysis:
             term_input=24
         )
 
-        # regla real: al menos una solución válida
         feasible = len(ops) > 0
 
         if feasible:
             st.success("🟢 FACTIBILIDAD POSITIVA")
+            st.json(ops)
         else:
             st.error("🔴 FACTIBILIDAD NEGATIVA")
             st.write("Opciones de mejora:")
