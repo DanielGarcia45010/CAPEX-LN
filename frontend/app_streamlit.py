@@ -1,5 +1,7 @@
 # frontend/app_streamlit.py
 
+# frontend/app_streamlit.py
+
 import sys
 from pathlib import Path
 
@@ -30,7 +32,7 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE (ESTABLE REAL)
+# STATE ESTABLE (CLAVE REAL)
 # =========================================================
 
 if "analysis" not in st.session_state:
@@ -39,8 +41,8 @@ if "analysis" not in st.session_state:
 if "line_points" not in st.session_state:
     st.session_state.line_points = []
 
-if "last_click" not in st.session_state:
-    st.session_state.last_click = None
+if "click_buffer" not in st.session_state:
+    st.session_state.click_buffer = None
 
 
 # =========================================================
@@ -90,7 +92,7 @@ engine = build_engine()
 
 
 # =========================================================
-# SIDEBAR
+# UI
 # =========================================================
 
 section = st.sidebar.radio("Menú", ["Cotización", "Factibilidad"])
@@ -159,7 +161,7 @@ if section == "Cotización":
 
 
     # =====================================================
-    # RENDER (MAPA ÚNICO ESTABLE)
+    # MAPA (CANVAS ESTABLE REAL)
     # =====================================================
 
     if st.session_state.analysis:
@@ -172,7 +174,7 @@ if section == "Cotización":
         st.metric("CAPEX SCORE", f"{data['score']:.4f}")
 
         # =========================
-        # MAPA BASE
+        # MAPA BASE (SE RENDERIZA SIEMPRE IGUAL)
         # =========================
         m = folium.Map(
             location=[lat, lon],
@@ -180,18 +182,13 @@ if section == "Cotización":
             tiles="CartoDB dark_matter"
         )
 
-        folium.Marker(
-            [lat, lon],
-            tooltip="CLIENTE",
-            icon=folium.Icon(color="red")
-        ).add_to(m)
+        folium.Marker([lat, lon], tooltip="CLIENTE",
+                      icon=folium.Icon(color="red")).add_to(m)
 
         if best_point:
-            folium.Marker(
-                [best_point[1], best_point[0]],
-                tooltip="ÓPTIMO",
-                icon=folium.Icon(color="green")
-            ).add_to(m)
+            folium.Marker([best_point[1], best_point[0]],
+                          tooltip="ÓPTIMO",
+                          icon=folium.Icon(color="green")).add_to(m)
 
         # =========================
         # LÍNEA CONTINUA
@@ -214,20 +211,20 @@ if section == "Cotización":
         )
 
         # =================================================
-        # CLICK CONTROLADO (SIN RERUN, SIN RESET VISUAL)
+        # CLICK HANDLER (SIN RESET VISUAL)
         # =================================================
         if output and output.get("last_clicked"):
 
             click = output["last_clicked"]
             new_point = (click["lng"], click["lat"])
 
-            # evita duplicados exactos
-            if st.session_state.last_click != new_point:
-                st.session_state.last_click = new_point
+            # SOLO GUARDAR, NO REACCIONAR INMEDIATAMENTE
+            if st.session_state.click_buffer != new_point:
+                st.session_state.click_buffer = new_point
                 st.session_state.line_points.append(new_point)
 
         # =================================================
-        # DISTANCIA TOTAL
+        # DISTANCIA
         # =================================================
         total = 0
 
@@ -239,12 +236,12 @@ if section == "Cotización":
         if len(st.session_state.line_points) > 1:
             st.success(f"📏 Distancia total: {total:,.2f} metros")
 
-        # =================================================
+        # =========================
         # RESET
-        # =================================================
+        # =========================
         if st.button("Reset línea"):
             st.session_state.line_points = []
-            st.session_state.last_click = None
+            st.session_state.click_buffer = None
 
 
 # =========================================================
