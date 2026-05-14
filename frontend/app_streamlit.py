@@ -31,7 +31,7 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE ESTABLE
+# STATE
 # =========================================================
 
 if "analysis" not in st.session_state:
@@ -107,7 +107,7 @@ if section == "Cotización":
     mrc_cliente = st.number_input("💰 MRC", value=3000000)
 
     # =====================================================
-    # ANÁLISIS (NO UI DE MAPA AQUÍ)
+    # ANALISIS (SOLO CALCULA)
     # =====================================================
 
     if st.button("Analizar cotización"):
@@ -149,7 +149,6 @@ if section == "Cotización":
                 best_score = score
                 best_point = (c.x, c.y)
 
-        # 🔥 guardamos TODO en estado
         st.session_state.analysis = {
             "lat": lat,
             "lon": lon,
@@ -157,12 +156,12 @@ if section == "Cotización":
             "score": best_score
         }
 
-        # 🔥 reset correcto de línea SOLO cuando cambia análisis
-        st.session_state.line_points = []
+        # ❗ NO borrar línea automáticamente (esto era el bug)
+        # st.session_state.line_points = []  <-- ELIMINADO
 
 
     # =====================================================
-    # RENDER SI HAY ANÁLISIS
+    # RENDER ÚNICO (MAPA ÚNICO)
     # =====================================================
 
     if st.session_state.analysis:
@@ -175,7 +174,7 @@ if section == "Cotización":
         st.metric("CAPEX SCORE", f"{data['score']:.4f}")
 
         # =================================================
-        # MAPA PYDECK (SOLO VISUAL)
+        # MAPA PYDECK (VISUAL)
         # =================================================
 
         layers = [
@@ -183,7 +182,7 @@ if section == "Cotización":
                 "ScatterplotLayer",
                 data=[{"position": [lon, lat]}],
                 get_position="position",
-                get_radius= 10,
+                get_radius=10,
                 get_fill_color=[255, 0, 0],
             )
         ]
@@ -194,7 +193,7 @@ if section == "Cotización":
                     "ScatterplotLayer",
                     data=[{"position": list(best_point)}],
                     get_position="position",
-                    get_radius= 10,
+                    get_radius=10,
                     get_fill_color=[0, 255, 0],
                 )
             )
@@ -212,27 +211,22 @@ if section == "Cotización":
         )
 
         # =================================================
-        # MAPA INTERACTIVO ÚNICO (ESTABLE)
+        # MAPA INTERACTIVO ÚNICO
         # =================================================
 
         st.subheader("📍 Click para construir la ruta")
 
         m = folium.Map(location=[lat, lon], zoom_start=13)
 
-        folium.Marker(
-            [lat, lon],
-            tooltip="CLIENTE",
-            icon=folium.Icon(color="red")
-        ).add_to(m)
+        folium.Marker([lat, lon], tooltip="CLIENTE",
+                      icon=folium.Icon(color="red")).add_to(m)
 
         if best_point:
-            folium.Marker(
-                [best_point[1], best_point[0]],
-                tooltip="OPTIMO",
-                icon=folium.Icon(color="green")
-            ).add_to(m)
+            folium.Marker([best_point[1], best_point[0]],
+                          tooltip="OPTIMO",
+                          icon=folium.Icon(color="green")).add_to(m)
 
-        # línea persistente
+        # línea persistente (SERPIENTE REAL)
         if len(st.session_state.line_points) > 1:
             folium.PolyLine(
                 [(p[1], p[0]) for p in st.session_state.line_points],
@@ -248,7 +242,7 @@ if section == "Cotización":
         )
 
         # =================================================
-        # CLICK HANDLER (ESTABLE Y SIN DUPLICADOS)
+        # CLICK CONTINUO (NO SE REINICIA)
         # =================================================
 
         if map_data and map_data.get("last_clicked"):
@@ -263,7 +257,7 @@ if section == "Cotización":
                 st.session_state.line_points.append(new_point)
 
         # =================================================
-        # DISTANCIA TOTAL
+        # DISTANCIA ACUMULADA
         # =================================================
 
         total = 0
