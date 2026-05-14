@@ -12,7 +12,7 @@ import pandas as pd
 import unicodedata
 import re
 
-from shapely.geometry import shape, LineString
+from shapely.geometry import shape
 from collections import defaultdict
 from streamlit_folium import st_folium
 
@@ -30,7 +30,7 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE
+# STATE (NO TOCAR MÁS DE LO NECESARIO)
 # =========================================================
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
@@ -54,17 +54,16 @@ def normalize(text):
 
 
 # =========================================================
-# COSTOS (EXCEL REAL, SOLO 2 COLUMNAS)
+# COSTOS (EXCEL REAL SIN CAMBIAR ESTRUCTURA)
 # =========================================================
 @st.cache_data
 def load_costs():
     df = pd.read_excel("costs.xlsx", engine="openpyxl")
 
-    # limpieza estricta SIN renombrar columnas
     df.columns = df.columns.str.strip()
 
     if "Ciudad" not in df.columns or "Valor Unitario" not in df.columns:
-        raise ValueError("El Excel debe tener: Ciudad | Valor Unitario")
+        raise ValueError("Excel debe tener columnas: Ciudad | Valor Unitario")
 
     df["Ciudad"] = df["Ciudad"].astype(str).apply(normalize)
     df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
@@ -137,7 +136,7 @@ section = st.sidebar.radio("Menú", ["Cotización", "Factibilidad"])
 
 
 # =========================================================
-# COTIZACIÓN (MAPA + LÍNEA)
+# COTIZACIÓN
 # =========================================================
 if section == "Cotización":
 
@@ -156,7 +155,9 @@ if section == "Cotización":
 
         lat, lon = result["lat"], result["lon"]
 
-        city = "bogota"  # fijo si no hay fuente confiable
+        # ciudad fija (evita errores del geocoder)
+        city = "bogota"
+
         unit_cost = get_unit_cost(city)
 
         if unit_cost is None:
@@ -197,7 +198,7 @@ if section == "Cotización":
 
 
 # =========================================================
-# MAPA + DIBUJO DE LÍNEA
+# MAPA + DIBUJO (ESTABLE COMO ANTES)
 # =========================================================
 if st.session_state.analysis:
 
@@ -205,16 +206,23 @@ if st.session_state.analysis:
 
     client = data["client"]
     best = data["best"]
-    unit_cost = data["unit_cost"]
 
     m = folium.Map(location=[client[1], client[0]], zoom_start=13)
 
-    folium.Marker([client[1], client[0]], tooltip="Cliente", icon=folium.Icon(color="red")).add_to(m)
+    folium.Marker(
+        [client[1], client[0]],
+        tooltip="Cliente",
+        icon=folium.Icon(color="red")
+    ).add_to(m)
 
     if best:
-        folium.Marker([best[1], best[0]], tooltip="Óptimo", icon=folium.Icon(color="green")).add_to(m)
+        folium.Marker(
+            [best[1], best[0]],
+            tooltip="Óptimo",
+            icon=folium.Icon(color="green")
+        ).add_to(m)
 
-    # línea acumulada
+    # línea continua (NO SE ROMPE)
     if len(st.session_state.line_points) > 1:
         folium.PolyLine(
             [(p[1], p[0]) for p in st.session_state.line_points],
@@ -224,7 +232,7 @@ if st.session_state.analysis:
 
     output = st_folium(m, height=650, width=1100)
 
-    # click continuo (NO reinicia mapa)
+    # agregar puntos SIN reset
     if output and output.get("last_clicked"):
         p = output["last_clicked"]
         new = (p["lng"], p["lat"])
@@ -232,7 +240,7 @@ if st.session_state.analysis:
         if not st.session_state.line_points or st.session_state.line_points[-1] != new:
             st.session_state.line_points.append(new)
 
-    # distancia total real
+    # distancia acumulada
     total = 0
     for i in range(len(st.session_state.line_points) - 1):
         lon1, lat1 = st.session_state.line_points[i]
@@ -243,7 +251,7 @@ if st.session_state.analysis:
 
 
 # =========================================================
-# FACTIBILIDAD (SOLO AQUÍ DECIDE)
+# FACTIBILIDAD (SOLO AQUÍ SE DECIDE)
 # =========================================================
 if st.session_state.analysis:
 
@@ -253,7 +261,7 @@ if st.session_state.analysis:
 
     if st.button("Evaluar factibilidad"):
 
-        # costo real correcto
+        # distancia real
         distance = 0
 
         for i in range(len(st.session_state.line_points) - 1):
@@ -261,6 +269,7 @@ if st.session_state.analysis:
             lon2, lat2 = st.session_state.line_points[i + 1]
             distance += haversine(lon1, lat1, lon2, lat2)
 
+        # 🔥 AQUÍ ESTÁ TU CAMBIO CLAVE
         costo_obra = distance * unit_cost
 
         ops = generate_opportunities(
@@ -273,4 +282,6 @@ if st.session_state.analysis:
             st.success("🟢 FACTIBILIDAD POSITIVA")
         else:
             st.error("🔴 FACTIBILIDAD NEGATIVA")
-            st.json(ops)
+
+        st.metric("Valor Obras", f"{costo_obra:,.2f}")
+        st.json(ops)
