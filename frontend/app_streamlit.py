@@ -30,7 +30,7 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE ESTABLE (CLAVE)
+# STATE ESTABLE
 # =========================================================
 
 if "analysis" not in st.session_state:
@@ -107,6 +107,7 @@ if section == "Cotización":
     location_input = st.text_input("📍 Dirección o coordenadas")
     mrc_cliente = st.number_input("💰 MRC", value=3000000)
 
+
     # =====================================================
     # ANALISIS
     # =====================================================
@@ -135,7 +136,6 @@ if section == "Cotización":
             density_map[h] += 1
 
         for h, idx in candidates:
-
             g = geometries[idx]
             c = g.centroid
 
@@ -159,7 +159,7 @@ if section == "Cotización":
 
 
     # =====================================================
-    # RENDER (SIEMPRE MISMO MAPA BASE)
+    # RENDER MAPA ÚNICO (SIN RERUN)
     # =====================================================
 
     if st.session_state.analysis:
@@ -171,11 +171,12 @@ if section == "Cotización":
 
         st.metric("CAPEX SCORE", f"{data['score']:.4f}")
 
-        # =================================================
-        # MAPA BASE (NO SE RECREA CON CADA CLICK)
-        # =================================================
-
-        m = folium.Map(location=[lat, lon], zoom_start=13, tiles="CartoDB dark_matter")
+        # MAPA BASE
+        m = folium.Map(
+            location=[lat, lon],
+            zoom_start=13,
+            tiles="CartoDB dark_matter"
+        )
 
         folium.Marker([lat, lon], tooltip="CLIENTE",
                       icon=folium.Icon(color="red")).add_to(m)
@@ -185,7 +186,7 @@ if section == "Cotización":
                           tooltip="ÓPTIMO",
                           icon=folium.Icon(color="green")).add_to(m)
 
-        # línea persistente
+        # LÍNEA CONTINUA
         if len(st.session_state.line_points) > 1:
             folium.PolyLine(
                 [(p[1], p[0]) for p in st.session_state.line_points],
@@ -193,10 +194,7 @@ if section == "Cotización":
                 weight=5
             ).add_to(m)
 
-        # =================================================
-        # MAPA INTERACTIVO (ESTABLE SIN PARPADEO)
-        # =================================================
-
+        # MAPA INTERACTIVO
         output = st_folium(
             m,
             height=700,
@@ -205,21 +203,18 @@ if section == "Cotización":
         )
 
         # =================================================
-        # CONTROL DE CLICK (EVITA RE-TRIGGERS)
+        # CLICK SIN RERUN (CLAVE)
         # =================================================
 
         click = output.get("last_clicked") if output else None
 
         if click:
-
             new_point = (click["lng"], click["lat"])
 
+            # evita duplicados
             if new_point != st.session_state.last_click:
                 st.session_state.last_click = new_point
                 st.session_state.line_points.append(new_point)
-
-                # 🔥 FORZAR rerun SOLO cuando hay nuevo punto
-                st.rerun()
 
         # =================================================
         # DISTANCIA
@@ -228,7 +223,6 @@ if section == "Cotización":
         total = 0
 
         for i in range(len(st.session_state.line_points) - 1):
-
             lon1, lat1 = st.session_state.line_points[i]
             lon2, lat2 = st.session_state.line_points[i + 1]
 
@@ -237,14 +231,10 @@ if section == "Cotización":
         if len(st.session_state.line_points) > 1:
             st.success(f"📏 Distancia total: {total:,.2f} metros")
 
-        # =================================================
         # RESET
-        # =================================================
-
         if st.button("Reset línea"):
             st.session_state.line_points = []
             st.session_state.last_click = None
-            st.rerun()
 
 
 # =========================================================
