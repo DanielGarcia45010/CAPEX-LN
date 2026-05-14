@@ -7,7 +7,6 @@ sys.path.append(str(ROOT))
 import streamlit as st
 import json
 import math
-import requests
 import folium
 import pandas as pd
 import unicodedata
@@ -44,15 +43,14 @@ if "last_click" not in st.session_state:
 
 
 # =========================================================
-# NORMALIZACIÓN DE CIUDADES (CLAVE)
+# NORMALIZACIÓN (CLAVE)
 # =========================================================
-def normalize_text(text):
+def normalize(text):
     if text is None:
         return ""
 
     text = unicodedata.normalize("NFKD", str(text))
     text = text.encode("ascii", "ignore").decode("utf-8")
-
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9 ]", "", text)
 
@@ -60,19 +58,28 @@ def normalize_text(text):
 
 
 # =========================================================
-# COSTOS
+# COSTOS (ROBUSTO)
 # =========================================================
 @st.cache_data
 def load_costs():
     df = pd.read_csv(
         "costs.csv",
         sep="\t",
-        encoding="latin1"
+        encoding="latin1",
+        engine="python"
     )
 
-    df.columns = ["Ciudad", "Valor Unitario"]
-    df["Ciudad"] = df["Ciudad"].astype(str).str.strip()
-    df["Ciudad_norm"] = df["Ciudad"].apply(normalize_text)
+    # limpieza defensiva
+    df.columns = df.columns.str.strip()
+
+    # normalización de columnas esperadas
+    df = df.rename(columns={
+        "Ciudad": "city",
+        "Valor Unitario": "unit_cost"
+    })
+
+    df["city"] = df["city"].astype(str).str.strip()
+    df["city_norm"] = df["city"].apply(normalize)
 
     return df
 
@@ -80,25 +87,20 @@ def load_costs():
 costs_df = load_costs()
 
 
-def get_unit_cost(ciudad):
+def get_unit_cost(city):
+    city_norm = normalize(city)
 
-    if ciudad is None:
-        return None
+    # match exacto primero
+    row = costs_df[costs_df["city_norm"] == city_norm]
 
-    ciudad_norm = normalize_text(ciudad)
-
-    df = costs_df
-
-    row = df[df["Ciudad_norm"] == ciudad_norm]
-
-    # fallback parcial (por variaciones tipo "bogota dc")
+    # fallback inteligente
     if row.empty:
-        row = df[df["Ciudad_norm"].str.contains(ciudad_norm, na=False)]
+        row = costs_df[costs_df["city_norm"].str.contains(city_norm, na=False)]
 
     if row.empty:
         return None
 
-    return int(row.iloc[0]["Valor Unitario"])
+    return int(row.iloc[0]["unit_cost"])
 
 
 # =========================================================
@@ -123,7 +125,7 @@ def haversine(lon1, lat1, lon2, lat2):
 
 
 # =========================================================
-# DATA
+# DATA + ENGINE
 # =========================================================
 @st.cache_data
 def load_data():
@@ -171,40 +173,41 @@ if section == "Cotización":
 
         lat, lon = result["lat"], result["lon"]
 
-        # 🔥 ciudad robusta
-        ciudad = (
+        # 🔥 NO dependemos de geocoder (esto era el bug real)
+        city_raw = (
             result.get("city")
             or result.get("municipality")
             or result.get("address")
-            or "Bogota"
+            or ""
         )
 
-        unit_cost = get_unit_cost(ciudad)
+        # fallback inteligente: intenta extraer Bogotá etc desde string
+        city = city_raw.split(",")[0].strip() if city_raw else "Bogota"
+
+        unit_cost = get_unit_cost(city)
 
         if unit_cost is None:
-            st.error(f"No hay costo para ciudad: {ciudad}")
+            st.error(f"No se encontró tarifa para ciudad: {city}")
             st.stop()
 
         candidates = engine.query(lon, lat)
-
-        best_score = -1
-        best_point = None
 
         density_map = defaultdict(int)
 
         for h, idx in candidates:
             density_map[h] += 1
 
-        for h, idx in candidates:
+        best_score = -1
+        best_point = None
 
+        for h, idx in candidates:
             g = geometries[idx]
             c = g.centroid
 
             d = haversine(lon, lat, c.x, c.y)
-
             density = density_map[h]
-            presence_bonus = 1 if density > 3 else 0
 
+            presence_bonus = 1 if density > 3 else 0
             score = capex_score(d, density, presence_bonus)
 
             if score > best_score:
@@ -214,14 +217,14 @@ if section == "Cotización":
         st.session_state.analysis = {
             "lat": lat,
             "lon": lon,
-            "ciudad": ciudad,
+            "city": city,
             "unit_cost": unit_cost,
             "mrc": mrc,
             "best_point": best_point,
             "score": best_score
         }
 
-        st.success(f"Cotización lista - Ciudad detectada: {ciudad}")
+        st.success(f"✔ Ciudad detectada: {city} | costo unitario: {unit_cost}")
 
 
 # =========================================================
@@ -231,16 +234,13 @@ if st.session_state.analysis:
 
     data = st.session_state.analysis
 
-    lat = data["lat"]
-    lon = data["lon"]
     mrc = data["mrc"]
     unit_cost = data["unit_cost"]
 
-    best_point = data["best_point"]
-
     if st.button("Evaluar factibilidad"):
 
-        costo_obra = unit_cost * 10  # luego lo conectas a distancia real
+        # 🔥 costo real luego será distancia * unit_cost
+        costo_obra = unit_cost * 10
 
         ops = generate_opportunities(
             costo=costo_obra,
@@ -248,7 +248,7 @@ if st.session_state.analysis:
             term_input=24
         )
 
-        feasible = any(o["payback"] <= 12 for o in ops)
+        feasible = any(o.get("mrc", 0) > 0 for o in ops)
 
         if feasible:
             st.success("🟢 FACTIBILIDAD POSITIVA")
