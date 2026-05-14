@@ -87,7 +87,10 @@ engine = build_engine()
 # =========================================================
 @st.cache_data
 def load_costs():
-    return pd.read_csv("costs.csv")
+    try:
+        return pd.read_csv("costs.csv", encoding="utf-8")
+    except UnicodeDecodeError:
+        return pd.read_csv("costs.csv", encoding="latin1")
 
 
 costs_df = load_costs()
