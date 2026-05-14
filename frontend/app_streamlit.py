@@ -14,6 +14,8 @@ import requests
 
 from shapely.geometry import shape
 from collections import defaultdict
+from streamlit_folium import st_folium
+import folium
 
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
@@ -34,9 +36,6 @@ st.title("🚀 CAPEX ENGINE")
 
 if "line_points" not in st.session_state:
     st.session_state.line_points = []
-
-if "clicked_point" not in st.session_state:
-    st.session_state.clicked_point = None
 
 
 # =========================================================
@@ -101,20 +100,8 @@ if section == "Cotización":
 
     st.header("📍 Cotización")
 
-    location_input = st.text_input(
-        "📍 Dirección o coordenadas",
-        placeholder="Ej: Chapinero Bogotá o 4.7110,-74.0721"
-    )
-
-    mrc_cliente = st.number_input(
-        "💰 Valor mensual (COP)",
-        value=3000000,
-        step=100000
-    )
-
-    # =====================================================
-    # ANALIZAR
-    # =====================================================
+    location_input = st.text_input("📍 Dirección o coordenadas")
+    mrc_cliente = st.number_input("💰 MRC", value=3000000)
 
     if st.button("Analizar cotización"):
 
@@ -130,7 +117,7 @@ if section == "Cotización":
         st.success(result["address"])
 
         # =================================================
-        # CAPEX ENGINE
+        # CAPEX
         # =================================================
 
         candidates = engine.query(lon, lat)
@@ -163,15 +150,10 @@ if section == "Cotización":
 
 
         # =================================================
-        # CLICK INTERACTIVO (SERPIENTE REAL)
+        # PYDECK (VISUALIZACIÓN SOLO)
         # =================================================
 
-        st.subheader("📍 Click en el mapa para crear la línea")
-
-        layers = []
-
-        # CLIENTE
-        layers.append(
+        layers = [
             pdk.Layer(
                 "ScatterplotLayer",
                 data=[{"position": [lon, lat]}],
@@ -179,9 +161,8 @@ if section == "Cotización":
                 get_radius=10,
                 get_fill_color=[255, 0, 0],
             )
-        )
+        ]
 
-        # BEST POINT
         if best_point:
             layers.append(
                 pdk.Layer(
@@ -193,89 +174,60 @@ if section == "Cotización":
                 )
             )
 
-        # LÍNEA SERPIENTE
-        if len(st.session_state.line_points) > 1:
-            layers.append(
-                pdk.Layer(
-                    "PathLayer",
-                    data=[{
-                        "path": [[p[0], p[1]] for p in st.session_state.line_points]
-                    }],
-                    get_path="path",
-                    get_width=5,
-                    get_color=[0, 200, 255],
-                )
+        st.pydeck_chart(
+            pdk.Deck(
+                layers=layers,
+                initial_view_state=pdk.ViewState(
+                    latitude=lat,
+                    longitude=lon,
+                    zoom=13
+                ),
+                map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
             )
-
-
-        # =================================================
-        # MAPA INTERACTIVO (CLICK CAPTURE)
-        # =================================================
-
-        deck = pdk.Deck(
-            layers=layers,
-            initial_view_state=pdk.ViewState(
-                latitude=lat,
-                longitude=lon,
-                zoom=13
-            ),
-            map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
         )
 
-        event = st.pydeck_chart(deck, on_select="rerun")
-
 
         # =================================================
-        # CAPTURA CLICK (MAGIA REAL AQUÍ)
+        # 🧭 MAPA INTERACTIVO REAL (FOLIUM CLICK)
         # =================================================
 
-        if event and hasattr(event, "selection"):
+        st.subheader("📍 Haz click en el mapa para construir la línea")
 
-            try:
-                picked = event.selection.get("objects", [])
+        m = folium.Map(location=[lat, lon], zoom_start=13)
 
-                if picked:
+        folium.Marker([lat, lon], tooltip="CLIENTE", icon=folium.Icon(color="red")).add_to(m)
 
-                    # fallback simple click: usar centroid click si existe
-                    pass
+        if best_point:
+            folium.Marker([best_point[1], best_point[0]], tooltip="OPTIMO", icon=folium.Icon(color="green")).add_to(m)
 
-            except:
-                pass
+        # línea actual
+        if len(st.session_state.line_points) > 1:
+            folium.PolyLine(
+                [(p[1], p[0]) for p in st.session_state.line_points],
+                color="cyan",
+                weight=5
+            ).add_to(m)
 
-        # ⚠️ STREAMLIT NO EXPONE CLICK DIRECTO EN PYDECK
-        # => usamos input auxiliar estable:
-
-        st.caption("📌 Para agregar puntos usa el panel inferior")
-
+        map_data = st_folium(m, height=600, width=1000, key="map_click")
 
         # =================================================
-        # INPUT AUXILIAR (ESTABLE 100%)
+        # CLICK REAL
         # =================================================
 
-        col1, col2 = st.columns(2)
+        if map_data and map_data.get("last_clicked"):
 
-        with col1:
-            lat_p = st.number_input("Lat punto", value=lat, format="%.6f")
+            click = map_data["last_clicked"]
+            new_point = (click["lng"], click["lat"])
 
-        with col2:
-            lon_p = st.number_input("Lon punto", value=lon, format="%.6f")
-
-        c1, c2 = st.columns(2)
-
-        with c1:
-            if st.button("➕ Agregar punto"):
-                st.session_state.line_points.append((lon_p, lat_p))
-
-        with c2:
-            if st.button("🧹 Reset línea"):
-                st.session_state.line_points = []
+            if len(st.session_state.line_points) == 0 or st.session_state.line_points[-1] != new_point:
+                st.session_state.line_points.append(new_point)
 
 
         # =================================================
         # DISTANCIA
         # =================================================
 
-        total_distance = 0
+        total = 0
 
         if len(st.session_state.line_points) > 1:
 
@@ -284,9 +236,12 @@ if section == "Cotización":
                 lon1, lat1 = st.session_state.line_points[i]
                 lon2, lat2 = st.session_state.line_points[i + 1]
 
-                total_distance += haversine(lon1, lat1, lon2, lat2)
+                total += haversine(lon1, lat1, lon2, lat2)
 
-            st.success(f"📏 Distancia total: {total_distance:,.2f} metros")
+            st.success(f"📏 Distancia total: {total:,.2f} metros")
+
+        if st.button("Reset línea"):
+            st.session_state.line_points = []
 
 
 # =========================================================
