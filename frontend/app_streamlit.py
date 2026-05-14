@@ -183,7 +183,7 @@ if section == "Cotización":
                 "ScatterplotLayer",
                 data=[{"position": [lon, lat]}],
                 get_position="position",
-                get_radius": 10,
+                get_radius= 10,
                 get_fill_color=[255, 0, 0],
             )
         ]
@@ -194,7 +194,7 @@ if section == "Cotización":
                     "ScatterplotLayer",
                     data=[{"position": list(best_point)}],
                     get_position="position",
-                    get_radius": 10,
+                    get_radius= 10,
                     get_fill_color=[0, 255, 0],
                 )
             )
