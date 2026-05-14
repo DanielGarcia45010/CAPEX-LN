@@ -95,10 +95,10 @@ costs_df = load_costs()
 
 
 def get_unit_cost(city: str):
-    row = costs_df[costs_df["city"] == city]
+    row = costs_df[costs_df["Ciudad"] == city]
     if row.empty:
         return None
-    return float(row["unit_cost"].values[0])
+    return float(row["Red por metro lineal (COP/m)"].values[0])
 
 
 # =========================================================
