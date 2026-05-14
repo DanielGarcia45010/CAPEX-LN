@@ -10,6 +10,8 @@ import math
 import requests
 import folium
 import pandas as pd
+import unicodedata
+import re
 
 from shapely.geometry import shape
 from collections import defaultdict
@@ -42,29 +44,61 @@ if "last_click" not in st.session_state:
 
 
 # =========================================================
-# COSTOS (FIX REAL)
+# NORMALIZACIÓN DE CIUDADES (CLAVE)
+# =========================================================
+def normalize_text(text):
+    if text is None:
+        return ""
+
+    text = unicodedata.normalize("NFKD", str(text))
+    text = text.encode("ascii", "ignore").decode("utf-8")
+
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9 ]", "", text)
+
+    return text
+
+
+# =========================================================
+# COSTOS
 # =========================================================
 @st.cache_data
 def load_costs():
     df = pd.read_csv(
         "costs.csv",
-        sep="\t",            # 👈 CLAVE
-        encoding="latin1"    # 👈 CLAVE (NO UTF-8)
+        sep="\t",
+        encoding="latin1"
     )
 
     df.columns = ["Ciudad", "Valor Unitario"]
-    df["Ciudad"] = df["Ciudad"].str.strip()
+    df["Ciudad"] = df["Ciudad"].astype(str).str.strip()
+    df["Ciudad_norm"] = df["Ciudad"].apply(normalize_text)
+
     return df
 
 
 costs_df = load_costs()
 
 
-def get_unit_cost(Ciudad):
-    row = costs_df[costs_df["Ciudad"].str.lower() == Ciudad.lower()]
+def get_unit_cost(ciudad):
+
+    if ciudad is None:
+        return None
+
+    ciudad_norm = normalize_text(ciudad)
+
+    df = costs_df
+
+    row = df[df["Ciudad_norm"] == ciudad_norm]
+
+    # fallback parcial (por variaciones tipo "bogota dc")
+    if row.empty:
+        row = df[df["Ciudad_norm"].str.contains(ciudad_norm, na=False)]
+
     if row.empty:
         return None
-    return int(row.iloc[0]["unit_cost"])
+
+    return int(row.iloc[0]["Valor Unitario"])
 
 
 # =========================================================
@@ -72,6 +106,7 @@ def get_unit_cost(Ciudad):
 # =========================================================
 def haversine(lon1, lat1, lon2, lat2):
     R = 6371000
+
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
 
@@ -88,7 +123,7 @@ def haversine(lon1, lat1, lon2, lat2):
 
 
 # =========================================================
-# DATA + ENGINE
+# DATA
 # =========================================================
 @st.cache_data
 def load_data():
@@ -124,22 +159,30 @@ if section == "Cotización":
     st.header("📍 Cotización")
 
     location_input = st.text_input("📍 Dirección o coordenadas")
-    mrc = st.number_input("💰 MRC", value=0)
+    mrc = st.number_input("💰 MRC", value=3000000)
 
     if st.button("Analizar cotización"):
 
         result = resolve_input(location_input)
+
         if result is None:
             st.error("No se pudo encontrar ubicación")
             st.stop()
 
         lat, lon = result["lat"], result["lon"]
-        Ciudad = result.get("Ciudad", "Bogota")
 
-        unit_cost = get_unit_cost(Ciudad)
+        # 🔥 ciudad robusta
+        ciudad = (
+            result.get("city")
+            or result.get("municipality")
+            or result.get("address")
+            or "Bogota"
+        )
+
+        unit_cost = get_unit_cost(ciudad)
 
         if unit_cost is None:
-            st.error(f"No hay costo para ciudad: {Ciudad}")
+            st.error(f"No hay costo para ciudad: {ciudad}")
             st.stop()
 
         candidates = engine.query(lon, lat)
@@ -153,6 +196,7 @@ if section == "Cotización":
             density_map[h] += 1
 
         for h, idx in candidates:
+
             g = geometries[idx]
             c = g.centroid
 
@@ -170,18 +214,18 @@ if section == "Cotización":
         st.session_state.analysis = {
             "lat": lat,
             "lon": lon,
-            "Ciudad": Ciudad,
+            "ciudad": ciudad,
             "unit_cost": unit_cost,
             "mrc": mrc,
             "best_point": best_point,
             "score": best_score
         }
 
-        st.success("Cotización lista")
+        st.success(f"Cotización lista - Ciudad detectada: {ciudad}")
 
 
 # =========================================================
-# FACTIBILIDAD (ÚNICO DECISOR)
+# FACTIBILIDAD
 # =========================================================
 if st.session_state.analysis:
 
@@ -196,7 +240,7 @@ if st.session_state.analysis:
 
     if st.button("Evaluar factibilidad"):
 
-        costo_obra = unit_cost * 10  # 👈 aquí luego conectas distancia real
+        costo_obra = unit_cost * 10  # luego lo conectas a distancia real
 
         ops = generate_opportunities(
             costo=costo_obra,
@@ -210,5 +254,5 @@ if st.session_state.analysis:
             st.success("🟢 FACTIBILIDAD POSITIVA")
         else:
             st.error("🔴 FACTIBILIDAD NEGATIVA")
-            st.write("Opciones para mejorar:")
+            st.write("Opciones de mejora:")
             st.json(ops)
