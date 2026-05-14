@@ -11,11 +11,11 @@ import json
 import pydeck as pdk
 import math
 import requests
+import folium
 
 from shapely.geometry import shape
 from collections import defaultdict
 from streamlit_folium import st_folium
-import folium
 
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
@@ -117,7 +117,7 @@ if section == "Cotización":
         st.success(result["address"])
 
         # =================================================
-        # CAPEX
+        # CAPEX ENGINE
         # =================================================
 
         candidates = engine.query(lon, lat)
@@ -148,9 +148,8 @@ if section == "Cotización":
 
         st.metric("CAPEX SCORE", f"{best_score:.4f}")
 
-
         # =================================================
-        # PYDECK (VISUALIZACIÓN SOLO)
+        # MAPA BASE (SOLO VISUAL)
         # =================================================
 
         layers = [
@@ -186,21 +185,28 @@ if section == "Cotización":
             )
         )
 
-
         # =================================================
-        # 🧭 MAPA INTERACTIVO REAL (FOLIUM CLICK)
+        # MAPA INTERACTIVO REAL (ESTO ES LO IMPORTANTE)
         # =================================================
 
-        st.subheader("📍 Haz click en el mapa para construir la línea")
+        st.subheader("📍 Haz click en el mapa para crear la línea")
 
         m = folium.Map(location=[lat, lon], zoom_start=13)
 
-        folium.Marker([lat, lon], tooltip="CLIENTE", icon=folium.Icon(color="red")).add_to(m)
+        folium.Marker(
+            [lat, lon],
+            tooltip="CLIENTE",
+            icon=folium.Icon(color="red")
+        ).add_to(m)
 
         if best_point:
-            folium.Marker([best_point[1], best_point[0]], tooltip="OPTIMO", icon=folium.Icon(color="green")).add_to(m)
+            folium.Marker(
+                [best_point[1], best_point[0]],
+                tooltip="OPTIMO",
+                icon=folium.Icon(color="green")
+            ).add_to(m)
 
-        # línea actual
+        # DIBUJAR LÍNEA EXISTENTE
         if len(st.session_state.line_points) > 1:
             folium.PolyLine(
                 [(p[1], p[0]) for p in st.session_state.line_points],
@@ -208,10 +214,11 @@ if section == "Cotización":
                 weight=5
             ).add_to(m)
 
+        # CLICK MAPA (CLAVE)
         map_data = st_folium(m, height=600, width=1000, key="map_click")
 
         # =================================================
-        # CLICK REAL
+        # CAPTURA CLICK (ESTABLE Y SIN CRASH)
         # =================================================
 
         if map_data and map_data.get("last_clicked"):
@@ -219,12 +226,14 @@ if section == "Cotización":
             click = map_data["last_clicked"]
             new_point = (click["lng"], click["lat"])
 
-            if len(st.session_state.line_points) == 0 or st.session_state.line_points[-1] != new_point:
+            if (
+                len(st.session_state.line_points) == 0
+                or st.session_state.line_points[-1] != new_point
+            ):
                 st.session_state.line_points.append(new_point)
 
-
         # =================================================
-        # DISTANCIA
+        # DISTANCIA TOTAL
         # =================================================
 
         total = 0
@@ -240,8 +249,10 @@ if section == "Cotización":
 
             st.success(f"📏 Distancia total: {total:,.2f} metros")
 
+        # RESET
         if st.button("Reset línea"):
             st.session_state.line_points = []
+            st.rerun()
 
 
 # =========================================================
