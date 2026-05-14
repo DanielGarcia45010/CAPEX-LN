@@ -356,32 +356,25 @@ if section == "Cotización":
             )
         )
 
-        # MAP
+        # =========================================================
+        # 🧭 MAPA FINAL (PYDECK + DRAW ESTABLE)
+        # =========================================================
 
-        # -----------------------------
-        # VALIDACIÓN SEGURA
-        # -----------------------------
         if best_point is None:
             best_point = (lon, lat)
 
-        # -----------------------------
-        # BOUNDS (para encuadrar mapa)
-        # -----------------------------
         min_lon = min(lon, best_point[0])
         max_lon = max(lon, best_point[0])
         min_lat = min(lat, best_point[1])
         max_lat = max(lat, best_point[1])
-        
+
         center_lat = (min_lat + max_lat) / 2
         center_lon = (min_lon + max_lon) / 2
 
-        # -----------------------------
-        # ZOOM DINÁMICO
-        # -----------------------------
         lat_diff = max_lat - min_lat
         lon_diff = max_lon - min_lon
         max_diff = max(lat_diff, lon_diff)
-        
+
         if max_diff < 0.01:
             zoom = 15
         elif max_diff < 0.05:
@@ -391,26 +384,28 @@ if section == "Cotización":
         else:
             zoom = 9
 
-        # -----------------------------
-        # MAPA FINAL
-        # -----------------------------
+
+        # =========================================================
+        # PYDECK MAPA (NO TOCAR MÁS)
+        # =========================================================
+
         st.pydeck_chart(
             pdk.Deck(
                 layers=layers,
-                
                 initial_view_state=pdk.ViewState(
                     latitude=center_lat,
                     longitude=center_lon,
                     zoom=zoom,
                     pitch=0,
                     bearing=0
-                    ),
-                
-            map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-    )
-)
+                ),
+                map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+            )
+        )
+
+
         # =========================================================
-        # 🧭 MEDICIÓN INTERACTIVA (FIX REAL)
+        # 🧭 MAPA DE MEDICIÓN (ESTABLE - FIX REAL)
         # =========================================================
 
         st.subheader("📏 Dibuja una línea para medir distancia")
@@ -421,14 +416,12 @@ if section == "Cotización":
             tiles="CartoDB dark_matter"
         )
 
-        # CLIENTE
         folium.Marker(
             [lat, lon],
             tooltip="CLIENTE",
             icon=folium.Icon(color="red")
         ).add_to(m2)
 
-        # BEST POINT
         if best_point:
             folium.Marker(
                 [best_point[1], best_point[0]],
@@ -436,7 +429,6 @@ if section == "Cotización":
                 icon=folium.Icon(color="green")
             ).add_to(m2)
 
-        # DRAW TOOL (IMPORTANTE: sin edit=True)
         draw = Draw(
             draw_options={
                 "polyline": True,
@@ -450,27 +442,25 @@ if section == "Cotización":
 
         draw.add_to(m2)
 
-        # IMPORTANTE: key + evitar crash de rerun
         output = st_folium(
             m2,
             height=600,
             width=1000,
-            key="capex_map_draw"
+            key=f"capex_map_draw_{lat}_{lon}"
         )
 
+
         # =========================================================
-        # 📐 DISTANCIA (FIX API REAL)
+        # 📐 DISTANCIA (CORRECTA Y ESTABLE)
         # =========================================================
 
         total_distance = 0
 
-        if output:
+        if output and "all_drawings" in output:
 
-            drawing = output.get("last_active_drawing")
+            for d in output["all_drawings"]:
 
-            if drawing and "geometry" in drawing:
-
-                geom = drawing["geometry"]
+                geom = d.get("geometry", {})
 
                 if geom.get("type") == "LineString":
 
@@ -483,8 +473,8 @@ if section == "Cotización":
 
                         total_distance += haversine(lon1, lat1, lon2, lat2)
 
-            if total_distance > 0:
-                st.success(f"📏 Distancia total dibujada: {total_distance:,.2f} metros")
+        if total_distance > 0:
+            st.success(f"📏 Distancia total dibujada: {total_distance:,.2f} metros")
 
 # =========================================================
 # =========================================================
