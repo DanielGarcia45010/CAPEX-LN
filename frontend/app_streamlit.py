@@ -124,7 +124,7 @@ if section == "Cotización":
     st.header("📍 Cotización")
 
     location_input = st.text_input("📍 Dirección o coordenadas")
-    mrc = st.number_input("💰 MRC", value=3000000)
+    mrc = st.number_input("💰 MRC", value=0)
 
     if st.button("Analizar cotización"):
 
@@ -134,7 +134,7 @@ if section == "Cotización":
             st.stop()
 
         lat, lon = result["lat"], result["lon"]
-        city = result.get("city", "Bogota")
+        city = result.get("Ciudad", "Bogota")
 
         unit_cost = get_unit_cost(city)
 
