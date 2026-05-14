@@ -1,7 +1,9 @@
 import math
 
 
-# ---------------- PAYBACK ----------------
+# =========================================================
+# PAYBACK
+# =========================================================
 def payback_months(costo, nrc, mrc):
 
     if mrc <= 0:
@@ -10,7 +12,9 @@ def payback_months(costo, nrc, mrc):
     return (costo - nrc) / mrc
 
 
-# ---------------- VALIDACIÓN ----------------
+# =========================================================
+# VALIDACIÓN BASE
+# =========================================================
 def is_valid(costo, mrc, nrc, term):
 
     if mrc <= 0:
@@ -21,26 +25,34 @@ def is_valid(costo, mrc, nrc, term):
     return pb <= (term / 2)
 
 
-# ---------------- HELPERS ----------------
+# =========================================================
+# HELPERS
+# =========================================================
 def mrc_min(costo, term):
-
     return math.ceil((2 * costo) / term)
 
 
 def nrc_min(costo, mrc, term):
-
     return math.ceil(max(0, costo - (mrc * (term / 2))))
 
 
-# ---------------- GENERADOR PRINCIPAL ----------------
+def clamp_term(term):
+    return min(36, max(12, term))
+
+
+# =========================================================
+# GENERADOR DE ESCENARIOS
+# =========================================================
 def generate_opportunities(costo, mrc_input, term_input):
 
     opportunities = []
     used_mrc = set()
 
-    # ---------------------------------------------------
-    # OPORTUNIDAD 1 → solo MRC (sin NRC)
-    # ---------------------------------------------------
+    term_input = clamp_term(term_input)
+
+    # =====================================================
+    # OPORTUNIDAD 1 → SOLO MRC
+    # =====================================================
     term1 = term_input
 
     mrc1 = max(
@@ -50,33 +62,30 @@ def generate_opportunities(costo, mrc_input, term_input):
 
     nrc1 = 0
 
-    opportunities.append({
-        "oportunidad": 1,
-        "mrc": int(mrc1),
-        "nrc": int(nrc1),
-        "term": int(term1)
-    })
+    if is_valid(costo, mrc1, nrc1, term1):
+        opportunities.append({
+            "oportunidad": 1,
+            "mrc": int(mrc1),
+            "nrc": int(nrc1),
+            "term": int(term1)
+        })
+        used_mrc.add(mrc1)
 
-    used_mrc.add(mrc1)
-
-    # ---------------------------------------------------
-    # OPORTUNIDAD 2 → búsqueda variada (MRC + NRC)
-    # ---------------------------------------------------
-    found2 = False
-
-    for term2 in range(max(6, term_input - 12), term_input + 24):
+    # =====================================================
+    # OPORTUNIDAD 2 → balance MRC + NRC
+    # =====================================================
+    for term2 in [12, 24, 36]:
 
         for delta in range(1, 5000):
 
-            mrc2 = mrc_input + delta
+            mrc2 = mrc_input - delta
 
-            if mrc2 in used_mrc:
+            if mrc2 <= 0 or mrc2 in used_mrc:
                 continue
 
             nrc2 = nrc_min(costo, mrc2, term2)
 
-            # restricción 40% costo
-            if nrc2 > (0.4 * costo):
+            if nrc2 > 0.4 * costo:
                 continue
 
             if is_valid(costo, mrc2, nrc2, term2):
@@ -89,29 +98,26 @@ def generate_opportunities(costo, mrc_input, term_input):
                 })
 
                 used_mrc.add(mrc2)
-                found2 = True
                 break
 
-        if found2:
+        if len(opportunities) >= 2:
             break
 
-    # ---------------------------------------------------
-    # OPORTUNIDAD 3 → más agresiva / diferente horizonte
-    # ---------------------------------------------------
-    found3 = False
+    # =====================================================
+    # OPORTUNIDAD 3 → alternativa agresiva
+    # =====================================================
+    for term3 in [36, 24, 12]:
 
-    for term3 in range(6, 48):  # más flexible (NO fijo)
+        for delta in range(1000, 20000):
 
-        for delta in range(5000, 20000):
-
-            mrc3 = max(1, mrc_input - delta)
+            mrc3 = mrc_input + delta
 
             if mrc3 in used_mrc:
                 continue
 
             nrc3 = nrc_min(costo, mrc3, term3)
 
-            if nrc3 > (0.4 * costo):
+            if nrc3 > 0.4 * costo:
                 continue
 
             if is_valid(costo, mrc3, nrc3, term3):
@@ -123,10 +129,10 @@ def generate_opportunities(costo, mrc_input, term_input):
                     "term": int(term3)
                 })
 
-                found3 = True
+                used_mrc.add(mrc3)
                 break
 
-        if found3:
+        if len(opportunities) >= 3:
             break
 
     return opportunities[:3]
