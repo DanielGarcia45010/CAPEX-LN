@@ -264,7 +264,7 @@ if section == "Cotización":
                     }
                 ],
                 get_position="position",
-                get_radius=140,
+                get_radius=10,
                 get_fill_color=[255, 0, 0]
             )
         )
@@ -281,7 +281,7 @@ if section == "Cotización":
                         }
                     ],
                     get_position="position",
-                    get_radius=180,
+                    get_radius=10,
                     get_fill_color=[0, 255, 0]
                 )
             )
