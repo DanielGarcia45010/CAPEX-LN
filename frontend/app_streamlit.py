@@ -1,7 +1,5 @@
 # frontend/app_streamlit.py
 
-# frontend/app_streamlit.py
-
 import sys
 from pathlib import Path
 
@@ -18,6 +16,8 @@ from shapely.geometry import shape
 from collections import defaultdict
 from streamlit_folium import st_folium
 
+from folium.plugins import Draw
+
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
 from utils.geocoder import resolve_input
@@ -32,17 +32,14 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE ESTABLE (CLAVE REAL)
+# STATE
 # =========================================================
 
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
 
-if "line_points" not in st.session_state:
-    st.session_state.line_points = []
-
-if "click_buffer" not in st.session_state:
-    st.session_state.click_buffer = None
+if "draw_geojson" not in st.session_state:
+    st.session_state.draw_geojson = None
 
 
 # =========================================================
@@ -111,7 +108,7 @@ if section == "Cotización":
 
 
     # =====================================================
-    # ANÁLISIS
+    # ANÁLISIS CAPEX (SIN CAMBIOS)
     # =====================================================
 
     if st.button("Analizar cotización"):
@@ -161,7 +158,7 @@ if section == "Cotización":
 
 
     # =====================================================
-    # MAPA (CANVAS ESTABLE REAL)
+    # MAPA + DRAW TOOL (ESTO ES LA CLAVE)
     # =====================================================
 
     if st.session_state.analysis:
@@ -174,7 +171,7 @@ if section == "Cotización":
         st.metric("CAPEX SCORE", f"{data['score']:.4f}")
 
         # =========================
-        # MAPA BASE (SE RENDERIZA SIEMPRE IGUAL)
+        # MAPA BASE
         # =========================
         m = folium.Map(
             location=[lat, lon],
@@ -182,66 +179,88 @@ if section == "Cotización":
             tiles="CartoDB dark_matter"
         )
 
-        folium.Marker([lat, lon], tooltip="CLIENTE",
-                      icon=folium.Icon(color="red")).add_to(m)
+        # CLIENTE
+        folium.Marker(
+            [lat, lon],
+            tooltip="CLIENTE",
+            icon=folium.Icon(color="red")
+        ).add_to(m)
 
+        # ÓPTIMO
         if best_point:
-            folium.Marker([best_point[1], best_point[0]],
-                          tooltip="ÓPTIMO",
-                          icon=folium.Icon(color="green")).add_to(m)
-
-        # =========================
-        # LÍNEA CONTINUA
-        # =========================
-        if len(st.session_state.line_points) > 1:
-            folium.PolyLine(
-                [(p[1], p[0]) for p in st.session_state.line_points],
-                color="cyan",
-                weight=5
+            folium.Marker(
+                [best_point[1], best_point[0]],
+                tooltip="ÓPTIMO",
+                icon=folium.Icon(color="green")
             ).add_to(m)
 
         # =========================
-        # MAPA INTERACTIVO
+        # 🔥 LEAFLET DRAW TOOL
+        # =========================
+        draw = Draw(
+            export=True,
+            filename="route.geojson",
+            position="topleft",
+            draw_options={
+                "polyline": True,
+                "polygon": False,
+                "circle": False,
+                "rectangle": False,
+                "marker": True,
+                "circlemarker": False,
+            },
+            edit_options={"edit": True, "remove": True},
+        )
+
+        draw.add_to(m)
+
+        # =========================
+        # RENDER MAPA
         # =========================
         output = st_folium(
             m,
-            height=700,
+            height=750,
             width=1100,
-            key="ONLY_MAP"
+            key="DRAW_MAP"
         )
 
-        # =================================================
-        # CLICK HANDLER (SIN RESET VISUAL)
-        # =================================================
-        if output and output.get("last_clicked"):
+        # =========================
+        # CAPTURA DE DIBUJO REAL
+        # =========================
+        if output and "all_drawings" in output:
 
-            click = output["last_clicked"]
-            new_point = (click["lng"], click["lat"])
+            drawings = output["all_drawings"]
 
-            # SOLO GUARDAR, NO REACCIONAR INMEDIATAMENTE
-            if st.session_state.click_buffer != new_point:
-                st.session_state.click_buffer = new_point
-                st.session_state.line_points.append(new_point)
+            if drawings:
 
-        # =================================================
-        # DISTANCIA
-        # =================================================
+                last = drawings[-1]
+
+                if last["geometry"]["type"] == "LineString":
+                    coords = last["geometry"]["coordinates"]
+
+                    st.session_state.draw_geojson = coords
+
+        # =========================
+        # DISTANCIA REAL SOBRE LÍNEA
+        # =========================
         total = 0
 
-        for i in range(len(st.session_state.line_points) - 1):
-            lon1, lat1 = st.session_state.line_points[i]
-            lon2, lat2 = st.session_state.line_points[i + 1]
-            total += haversine(lon1, lat1, lon2, lat2)
+        if st.session_state.draw_geojson and len(st.session_state.draw_geojson) > 1:
 
-        if len(st.session_state.line_points) > 1:
+            pts = st.session_state.draw_geojson
+
+            for i in range(len(pts) - 1):
+                lon1, lat1 = pts[i]
+                lon2, lat2 = pts[i + 1]
+                total += haversine(lon1, lat1, lon2, lat2)
+
             st.success(f"📏 Distancia total: {total:,.2f} metros")
 
         # =========================
         # RESET
         # =========================
-        if st.button("Reset línea"):
-            st.session_state.line_points = []
-            st.session_state.click_buffer = None
+        if st.button("Reset ruta"):
+            st.session_state.draw_geojson = None
 
 
 # =========================================================
