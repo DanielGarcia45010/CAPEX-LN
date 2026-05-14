@@ -410,71 +410,70 @@ if section == "Cotización":
     )
 )
         # =========================================================
-# 🧭 MEDICIÓN INTERACTIVA (SIN AFECTAR PYDECK)
-# =========================================================
+        # 🧭 MEDICIÓN INTERACTIVA (SIN AFECTAR PYDECK
+        # =========================================================
+        
+        st.subheader("📏 Medición de distancia dibujando en el mapa")
+        m2 = folium.Map(
+            location=[center_lat, center_lon],
+            zoom_start=zoom,
+            tiles="CartoDB dark_matter"
+        )
 
-st.subheader("📏 Medición de distancia dibujando en el mapa")
+        # Cliente
+        folium.Marker(
+            [lat, lon],
+            tooltip="CLIENTE",
+            icon=folium.Icon(color="red")
+        ).add_to(m2)
 
-m2 = folium.Map(
-    location=[center_lat, center_lon],
-    zoom_start=zoom,
-    tiles="CartoDB dark_matter"
-)
+        # Mejor punto
+        if best_point:
+            folium.Marker(
+                [best_point[1], best_point[0]],
+                tooltip="MEJOR CIERRE",
+                icon=folium.Icon(color="green")
+            ).add_to(m2)
 
-# Cliente
-folium.Marker(
-    [lat, lon],
-    tooltip="CLIENTE",
-    icon=folium.Icon(color="red")
-).add_to(m2)
+        # Herramienta de dibujo (líneas)
+        draw = Draw(
+            draw_options={
+                "polyline": True,
+                "rectangle": False,
+                "polygon": False,
+                "circle": False,
+                "marker": False,
+                "circlemarker": False,
+            },
+            edit_options={"edit": False}
+        )
 
-# Mejor punto
-if best_point:
-    folium.Marker(
-        [best_point[1], best_point[0]],
-        tooltip="MEJOR CIERRE",
-        icon=folium.Icon(color="green")
-    ).add_to(m2)
+        draw.add_to(m2)
 
-# Herramienta de dibujo (líneas)
-draw = Draw(
-    draw_options={
-        "polyline": True,
-        "rectangle": False,
-        "polygon": False,
-        "circle": False,
-        "marker": False,
-        "circlemarker": False,
-    },
-    edit_options={"edit": False}
-)
+        output = st_folium(m2, height=600, width=1000)
 
-draw.add_to(m2)
+        # =========================================================
+        # 📐 CÁLCULO DISTANCIA LÍNEA DIBUJADA
+        # =========================================================
 
-output = st_folium(m2, height=600, width=1000)
+        if output and output.get("all_drawings"):
 
-# =========================================================
-# 📐 CÁLCULO DISTANCIA LÍNEA DIBUJADA
-# =========================================================
+            total_distance = 0
 
-if output and output.get("all_drawings"):
+            for d in output["all_drawings"]:
 
-    total_distance = 0
+                if d["geometry"]["type"] == "LineString":
 
-    for d in output["all_drawings"]:
+                    coords = d["geometry"]["coordinates"]
 
-        if d["geometry"]["type"] == "LineString":
+                    for i in range(len(coords) - 1):
 
-            coords = d["geometry"]["coordinates"]
+                        lon1, lat1 = coords[i]
+                        lon2, lat2 = coords[i + 1]
 
-            for i in range(len(coords) - 1):
+                        total_distance += haversine(lon1, lat1, lon2, lat2)
 
-                lon1, lat1 = coords[i]
-                lon2, lat2 = coords[i + 1]
-
-                total_distance += haversine(lon1, lat1, lon2, lat2)
-
-    st.success(f"📏 Distancia total dibujada: {total_distance:,.2f} metros")
+            st.success(f"📏 Distancia total dibujada: {total_distance:,.2f} metros")
 
 
 # =========================================================
