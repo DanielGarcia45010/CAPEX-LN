@@ -35,15 +35,9 @@ st.title("🚀 CAPEX ENGINE")
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
 
-if "line_points" not in st.session_state:
-    st.session_state.line_points = []
-
-if "last_click" not in st.session_state:
-    st.session_state.last_click = None
-
 
 # =========================================================
-# NORMALIZACIÓN
+# NORMALIZACIÓN (ROBUSTA)
 # =========================================================
 def normalize(text):
     if text is None:
@@ -53,12 +47,34 @@ def normalize(text):
     text = text.encode("ascii", "ignore").decode("utf-8")
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9 ]", "", text)
-
     return text
 
 
+def extract_city(result):
+    """
+    Extrae ciudad REAL desde geocoder sin depender de claves inconsistentes.
+    """
+    raw = (
+        result.get("city")
+        or result.get("municipality")
+        or result.get("region")
+        or result.get("address")
+        or ""
+    )
+
+    if not raw:
+        return "bogota"
+
+    # toma primer segmento útil
+    city = raw.split(",")[0].strip()
+
+    # limpieza adicional (quita códigos raros)
+    city = re.sub(r"\d+", "", city)
+    return city if city else "bogota"
+
+
 # =========================================================
-# COSTOS (SIN RENOMBRAR COLUMNAS)
+# COSTOS (ESTABLE Y SIN RENOMBRES)
 # =========================================================
 @st.cache_data
 def load_costs():
@@ -71,8 +87,8 @@ def load_costs():
 
     df.columns = df.columns.str.strip()
 
-    # SOLO NORMALIZACIÓN, NO RENOMBRES
-    df["Ciudad_norm"] = df["Ciudad"].astype(str).apply(normalize)
+    # SOLO agregamos columna auxiliar, NO rompemos estructura original
+    df["Ciudad_norm"] = df["Ciudad"].apply(normalize)
 
     return df
 
@@ -80,13 +96,15 @@ def load_costs():
 costs_df = load_costs()
 
 
-def get_unit_cost(ciudad):
-    ciudad_norm = normalize(ciudad)
+def get_unit_cost(city):
+    city_norm = normalize(city)
 
-    row = costs_df[costs_df["Ciudad_norm"] == ciudad_norm]
+    # match exacto primero
+    row = costs_df[costs_df["Ciudad_norm"] == city_norm]
 
+    # fallback inteligente
     if row.empty:
-        row = costs_df[costs_df["Ciudad_norm"].str.contains(ciudad_norm, na=False)]
+        row = costs_df[costs_df["Ciudad_norm"].str.contains(city_norm, na=False)]
 
     if row.empty:
         return None
@@ -164,19 +182,13 @@ if section == "Cotización":
 
         lat, lon = result["lat"], result["lon"]
 
-        city_raw = (
-            result.get("city")
-            or result.get("municipality")
-            or result.get("address")
-            or ""
-        )
-
-        city = city_raw.split(",")[0].strip() if city_raw else "Bogota"
-
+        city = extract_city(result)
         unit_cost = get_unit_cost(city)
 
         if unit_cost is None:
             st.error(f"No se encontró tarifa para ciudad: {city}")
+            st.write("Ciudades disponibles:")
+            st.write(costs_df["Ciudad"].unique())
             st.stop()
 
         candidates = engine.query(lon, lat)
@@ -213,7 +225,7 @@ if section == "Cotización":
             "score": best_score
         }
 
-        st.success(f"✔ Ciudad detectada: {city} | costo unitario: {unit_cost}")
+        st.success(f"✔ Ciudad detectada: {city} | costo: {unit_cost}")
 
 
 # =========================================================
@@ -228,7 +240,7 @@ if st.session_state.analysis:
 
     if st.button("Evaluar factibilidad"):
 
-        costo_obra = unit_cost * 10
+        costo_obra = unit_cost * 10  # luego conectas distancia real
 
         ops = generate_opportunities(
             costo=costo_obra,
@@ -236,7 +248,8 @@ if st.session_state.analysis:
             term_input=24
         )
 
-        feasible = any(o.get("mrc", 0) > 0 for o in ops)
+        # regla real: al menos una solución válida
+        feasible = len(ops) > 0
 
         if feasible:
             st.success("🟢 FACTIBILIDAD POSITIVA")
