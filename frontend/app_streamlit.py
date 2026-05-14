@@ -354,55 +354,55 @@ if section == "Cotización":
 
         # MAP
 
-# -----------------------------
-# VALIDACIÓN SEGURA
-# -----------------------------
-if best_point is None:
-    best_point = (lon, lat)
+        # -----------------------------
+        # VALIDACIÓN SEGURA
+        # -----------------------------
+        if best_point is None:
+            best_point = (lon, lat)
 
-# -----------------------------
-# BOUNDS (para encuadrar mapa)
-# -----------------------------
-min_lon = min(lon, best_point[0])
-max_lon = max(lon, best_point[0])
-min_lat = min(lat, best_point[1])
-max_lat = max(lat, best_point[1])
+        # -----------------------------
+        # BOUNDS (para encuadrar mapa)
+        # -----------------------------
+        min_lon = min(lon, best_point[0])
+        max_lon = max(lon, best_point[0])
+        min_lat = min(lat, best_point[1])
+        max_lat = max(lat, best_point[1])
+        
+        center_lat = (min_lat + max_lat) / 2
+        center_lon = (min_lon + max_lon) / 2
 
-center_lat = (min_lat + max_lat) / 2
-center_lon = (min_lon + max_lon) / 2
+        # -----------------------------
+        # ZOOM DINÁMICO
+        # -----------------------------
+        lat_diff = max_lat - min_lat
+        lon_diff = max_lon - min_lon
+        max_diff = max(lat_diff, lon_diff)
+        
+        if max_diff < 0.01:
+            zoom = 15
+        elif max_diff < 0.05:
+            zoom = 13
+        elif max_diff < 0.2:
+            zoom = 11
+        else:
+            zoom = 9
 
-# -----------------------------
-# ZOOM DINÁMICO
-# -----------------------------
-lat_diff = max_lat - min_lat
-lon_diff = max_lon - min_lon
-max_diff = max(lat_diff, lon_diff)
-
-if max_diff < 0.01:
-    zoom = 15
-elif max_diff < 0.05:
-    zoom = 13
-elif max_diff < 0.2:
-    zoom = 11
-else:
-    zoom = 9
-
-# -----------------------------
-# MAPA FINAL
-# -----------------------------
-st.pydeck_chart(
-    pdk.Deck(
-        layers=layers,
-
-        initial_view_state=pdk.ViewState(
-            latitude=center_lat,
-            longitude=center_lon,
-            zoom=zoom,
-            pitch=0,
-            bearing=0
-        ),
-
-        map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+        # -----------------------------
+        # MAPA FINAL
+        # -----------------------------
+        st.pydeck_chart(
+            pdk.Deck(
+                layers=layers,
+                
+                initial_view_state=pdk.ViewState(
+                    latitude=center_lat,
+                    longitude=center_lon,
+                    zoom=zoom,
+                    pitch=0,
+                    bearing=0
+                    ),
+                
+            map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
     )
 )
 
