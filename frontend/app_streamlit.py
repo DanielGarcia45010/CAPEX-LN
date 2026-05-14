@@ -410,24 +410,29 @@ if section == "Cotización":
     )
 )
         # =========================================================
-        # 🧭 MEDICIÓN INTERACTIVA (SIN AFECTAR PYDECK
+        # 🧭 MEDICIÓN INTERACTIVA (ESTABLE)
         # =========================================================
-        
-        st.subheader("📏 Medición de distancia dibujando en el mapa")
+
+        st.subheader("📏 Dibuja una línea para medir distancia")
+
+        # Estado para evitar resets
+        if "drawn_lines" not in st.session_state:
+            st.session_state.drawn_lines = []
+
         m2 = folium.Map(
             location=[center_lat, center_lon],
             zoom_start=zoom,
             tiles="CartoDB dark_matter"
         )
 
-        # Cliente
+        # CLIENTE
         folium.Marker(
             [lat, lon],
             tooltip="CLIENTE",
             icon=folium.Icon(color="red")
         ).add_to(m2)
 
-        # Mejor punto
+        # BEST POINT
         if best_point:
             folium.Marker(
                 [best_point[1], best_point[0]],
@@ -435,7 +440,7 @@ if section == "Cotización":
                 icon=folium.Icon(color="green")
             ).add_to(m2)
 
-        # Herramienta de dibujo (líneas)
+        # DRAW TOOL
         draw = Draw(
             draw_options={
                 "polyline": True,
@@ -445,26 +450,40 @@ if section == "Cotización":
                 "marker": False,
                 "circlemarker": False,
             },
-            edit_options={"edit": False}
+            edit_options={"edit": True}
         )
 
         draw.add_to(m2)
 
-        output = st_folium(m2, height=600, width=1000)
+        # IMPORTANT: key evita rerun infinito
+        output = st_folium(
+            m2,
+            height=600,
+            width=1000,
+            key="map_draw"
+        )
 
         # =========================================================
-        # 📐 CÁLCULO DISTANCIA LÍNEA DIBUJADA
+        # 📐 FIX: lectura correcta de geometría
         # =========================================================
 
-        if output and output.get("all_drawings"):
+        if output:
+
+            drawings = output.get("all_drawings", [])
 
             total_distance = 0
 
-            for d in output["all_drawings"]:
+            for d in drawings:
 
-                if d["geometry"]["type"] == "LineString":
+                geom = d.get("geometry", {})
+                geom_type = geom.get("type", None)
 
-                    coords = d["geometry"]["coordinates"]
+                if geom_type == "LineString":
+
+                    coords = geom.get("coordinates", [])
+
+                    if len(coords) < 2:
+                        continue
 
                     for i in range(len(coords) - 1):
 
@@ -473,8 +492,8 @@ if section == "Cotización":
 
                         total_distance += haversine(lon1, lat1, lon2, lat2)
 
-            st.success(f"📏 Distancia total dibujada: {total_distance:,.2f} metros")
-
+            if total_distance > 0:
+                st.success(f"📏 Distancia total dibujada: {total_distance:,.2f} metros")
 
 # =========================================================
 # =========================================================
