@@ -271,6 +271,24 @@ if section == "Cotización":
             )
         )
 
+        layers.append(
+            pdk.Layer(
+                "TextLayer",
+                data=[
+                    {
+                        "position": [lon, lat],
+                        "text": "CLIENTE"
+                    }
+                ],
+                get_position="position",
+                get_text="text",
+                get_size=16,
+                get_color=[255, 0, 0],
+                get_angle=0,
+                get_alignment_baseline="bottom"
+            )
+        )    
+
         # BEST NODE
         if best_point:
 
@@ -289,6 +307,23 @@ if section == "Cotización":
                     pickable=True
                 )
             )
+
+            layers.append(
+        pdk.Layer(
+            "TextLayer",
+            data=[
+                {
+                    "position": list(best_point),
+                    "text": "Mejor Cierre"
+                }
+            ],
+            get_position="position",
+            get_text="text",
+            get_size=16,
+            get_color=[0, 255, 0],
+            get_alignment_baseline="bottom"
+        )
+    )
 
         # NETWORK
         red_points = []
