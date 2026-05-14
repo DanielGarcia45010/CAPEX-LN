@@ -79,41 +79,49 @@ def extract_city(result):
 @st.cache_data
 def load_costs():
 
-    # 🔥 lectura robusta (detecta separador automáticamente)
-    df = pd.read_csv(
-        "costs.csv",
-        sep=None,              # auto-detect
-        engine="python",      # necesario para auto-detect
-        encoding="latin1",
-        on_bad_lines="skip"   # ignora líneas rotas
-    )
+    file_path = "costs.csv"
 
-    # limpiar columnas
+    # ----------------------------
+    # 1. INTENTA CSV
+    # ----------------------------
+    try:
+        df = pd.read_csv(
+            file_path,
+            sep=None,
+            engine="python",
+            encoding="latin1",
+            on_bad_lines="skip"
+        )
+
+        # si parece excel interno, fallará aquí
+        if df.shape[1] == 1:
+            raise ValueError("Probable archivo Excel renombrado")
+
+    except Exception:
+        # ----------------------------
+        # 2. FALLBACK EXCEL
+        # ----------------------------
+        df = pd.read_excel(file_path)
+
+    # ----------------------------
+    # LIMPIEZA OBLIGATORIA
+    # ----------------------------
     df.columns = df.columns.str.strip()
 
-    # validar estructura mínima
-    expected_cols = ["Ciudad", "Valor Unitario"]
-    if not all(col in df.columns for col in expected_cols):
-        raise ValueError(f"CSV inválido. Columnas encontradas: {df.columns}")
+    if "Ciudad" not in df.columns or "Valor Unitario" not in df.columns:
+        raise ValueError(
+            f"Columnas inválidas: {df.columns}. "
+            "Debe contener 'Ciudad' y 'Valor Unitario'"
+        )
 
-    # normalización SIN romper columnas
-    df["Ciudad_norm"] = (
-        df["Ciudad"]
-        .astype(str)
-        .str.strip()
-        .apply(lambda x: unicodedata.normalize("NFKD", x)
-               .encode("ascii", "ignore")
-               .decode("utf-8")
-               .lower()
-               .strip())
-    )
+    df["Ciudad"] = df["Ciudad"].astype(str).str.strip()
 
-    # asegurar numerico limpio
-    df["Valor Unitario"] = (
-        df["Valor Unitario"]
-        .astype(str)
-        .str.replace(",", "")
-        .str.replace(" ", "")
+    df["Ciudad_norm"] = df["Ciudad"].apply(
+        lambda x: unicodedata.normalize("NFKD", str(x))
+        .encode("ascii", "ignore")
+        .decode("utf-8")
+        .lower()
+        .strip()
     )
 
     df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
