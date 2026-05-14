@@ -7,18 +7,18 @@ sys.path.append(str(ROOT))
 import streamlit as st
 import json
 import math
+import requests
+import folium
 import pandas as pd
 
 from shapely.geometry import shape
 from collections import defaultdict
 from streamlit_folium import st_folium
 
-import folium
-
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
 from utils.geocoder import resolve_input
-from core.feasibility import generate_opportunities
+from backend.feasibility import generate_opportunities
 
 
 # =========================================================
@@ -37,13 +37,41 @@ if "analysis" not in st.session_state:
 if "line_points" not in st.session_state:
     st.session_state.line_points = []
 
+if "last_click" not in st.session_state:
+    st.session_state.last_click = None
+
+
+# =========================================================
+# COSTOS (FIX REAL)
+# =========================================================
+@st.cache_data
+def load_costs():
+    df = pd.read_csv(
+        "costs.csv",
+        sep="\t",            # 👈 CLAVE
+        encoding="latin1"    # 👈 CLAVE (NO UTF-8)
+    )
+
+    df.columns = ["Ciudad", "Valor Unitario"]
+    df["Ciudad"] = df["Ciudad"].str.strip()
+    return df
+
+
+costs_df = load_costs()
+
+
+def get_unit_cost(city):
+    row = costs_df[costs_df["city"].str.lower() == city.lower()]
+    if row.empty:
+        return None
+    return int(row.iloc[0]["unit_cost"])
+
 
 # =========================================================
 # HELPERS
 # =========================================================
 def haversine(lon1, lat1, lon2, lat2):
     R = 6371000
-
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
 
@@ -60,7 +88,7 @@ def haversine(lon1, lat1, lon2, lat2):
 
 
 # =========================================================
-# DATA
+# DATA + ENGINE
 # =========================================================
 @st.cache_data
 def load_data():
@@ -83,34 +111,7 @@ engine = build_engine()
 
 
 # =========================================================
-# EXCEL COSTOS
-# =========================================================
-@st.cache_data
-def load_costs():
-
-    df = pd.read_csv(
-        "costs.csv",
-        sep="\t",          
-        encoding="utf-8"
-    )
-
-    df.columns = ["Ciudad", "Valor Unitario"]
-
-    return df
-
-
-costs_df = load_costs()
-
-
-def get_unit_cost(city: str):
-    row = costs_df[costs_df["Ciudad"] == city]
-    if row.empty:
-        return None
-    return float(row["Valor Unitario"].values[0])
-
-
-# =========================================================
-# SIDEBAR
+# UI
 # =========================================================
 section = st.sidebar.radio("Menú", ["Cotización", "Factibilidad"])
 
@@ -123,27 +124,28 @@ if section == "Cotización":
     st.header("📍 Cotización")
 
     location_input = st.text_input("📍 Dirección o coordenadas")
-    city = st.text_input("🏙️ Ciudad")
-    mrc_cliente = st.number_input("💰 MRC", value=3000000)
+    mrc = st.number_input("💰 MRC", value=3000000)
 
     if st.button("Analizar cotización"):
 
         result = resolve_input(location_input)
-
         if result is None:
             st.error("No se pudo encontrar ubicación")
             st.stop()
 
-        lat = result["lat"]
-        lon = result["lon"]
+        lat, lon = result["lat"], result["lon"]
+        city = result.get("city", "Bogota")
 
-        st.success(result["address"])
+        unit_cost = get_unit_cost(city)
 
-        # distancia simple base (puedes reemplazar luego por routing real)
+        if unit_cost is None:
+            st.error(f"No hay costo para ciudad: {city}")
+            st.stop()
+
         candidates = engine.query(lon, lat)
 
-        best_point = None
         best_score = -1
+        best_point = None
 
         density_map = defaultdict(int)
 
@@ -151,7 +153,6 @@ if section == "Cotización":
             density_map[h] += 1
 
         for h, idx in candidates:
-
             g = geometries[idx]
             c = g.centroid
 
@@ -166,71 +167,48 @@ if section == "Cotización":
                 best_score = score
                 best_point = (c.x, c.y)
 
-        # distancia aproximada cliente → punto óptimo
-        distance = haversine(lon, lat, best_point[0], best_point[1])
-
         st.session_state.analysis = {
             "lat": lat,
             "lon": lon,
+            "city": city,
+            "unit_cost": unit_cost,
+            "mrc": mrc,
             "best_point": best_point,
-            "distance": distance,
-            "mrc": mrc_cliente,
-            "city": city
+            "score": best_score
         }
 
-        st.session_state.line_points = []
+        st.success("Cotización lista")
 
 
 # =========================================================
-# FACTIBILIDAD
+# FACTIBILIDAD (ÚNICO DECISOR)
 # =========================================================
-else:
+if st.session_state.analysis:
 
-    st.header("💰 Factibilidad")
+    data = st.session_state.analysis
 
-    if st.session_state.analysis:
+    lat = data["lat"]
+    lon = data["lon"]
+    mrc = data["mrc"]
+    unit_cost = data["unit_cost"]
 
-        data = st.session_state.analysis
+    best_point = data["best_point"]
 
-        city = data["city"]
-        distance = data["distance"]
-        mrc = data["mrc"]
+    if st.button("Evaluar factibilidad"):
 
-        unit_cost = get_unit_cost(city)
+        costo_obra = unit_cost * 10  # 👈 aquí luego conectas distancia real
 
-        if unit_cost is None:
-            st.error("Ciudad no encontrada en Excel")
-            st.stop()
-
-        costo_obra = distance * unit_cost
-
-        st.metric("Costo obra civil", f"${costo_obra:,.0f}")
-
-        term = 24
-
-        opportunities = generate_opportunities(
-            costo=int(costo_obra),
-            mrc_input=int(mrc),
-            term_input=term
+        ops = generate_opportunities(
+            costo=costo_obra,
+            mrc_input=mrc,
+            term_input=24
         )
 
-        if len(opportunities) == 0:
+        feasible = any(o["payback"] <= 12 for o in ops)
 
-            st.error("❌ Factibilidad NEGATIVA")
-
-            st.write("No existe configuración válida")
-
-        elif len(opportunities) >= 1:
-
-            st.success("✅ Factibilidad POSITIVA")
-
-            for op in opportunities:
-
-                st.subheader(f"Oportunidad {op['oportunidad']}")
-
-                st.write(f"MRC: {op['mrc']}")
-                st.write(f"NRC: {op['nrc']}")
-                st.write(f"Term: {op['term']}")
-
-    else:
-        st.warning("Primero ejecuta Cotización")
+        if feasible:
+            st.success("🟢 FACTIBILIDAD POSITIVA")
+        else:
+            st.error("🔴 FACTIBILIDAD NEGATIVA")
+            st.write("Opciones para mejorar:")
+            st.json(ops)
