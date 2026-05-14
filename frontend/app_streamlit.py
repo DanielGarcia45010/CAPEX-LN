@@ -78,20 +78,47 @@ def extract_city(result):
 # =========================================================
 @st.cache_data
 def load_costs():
+
+    # 🔥 lectura robusta (detecta separador automáticamente)
     df = pd.read_csv(
         "costs.csv",
-        sep="\t",
+        sep=None,              # auto-detect
+        engine="python",      # necesario para auto-detect
         encoding="latin1",
-        engine="python"
+        on_bad_lines="skip"   # ignora líneas rotas
     )
 
+    # limpiar columnas
     df.columns = df.columns.str.strip()
 
-    # SOLO agregamos columna auxiliar, NO rompemos estructura original
-    df["Ciudad_norm"] = df["Ciudad"].apply(normalize)
+    # validar estructura mínima
+    expected_cols = ["Ciudad", "Valor Unitario"]
+    if not all(col in df.columns for col in expected_cols):
+        raise ValueError(f"CSV inválido. Columnas encontradas: {df.columns}")
+
+    # normalización SIN romper columnas
+    df["Ciudad_norm"] = (
+        df["Ciudad"]
+        .astype(str)
+        .str.strip()
+        .apply(lambda x: unicodedata.normalize("NFKD", x)
+               .encode("ascii", "ignore")
+               .decode("utf-8")
+               .lower()
+               .strip())
+    )
+
+    # asegurar numerico limpio
+    df["Valor Unitario"] = (
+        df["Valor Unitario"]
+        .astype(str)
+        .str.replace(",", "")
+        .str.replace(" ", "")
+    )
+
+    df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
 
     return df
-
 
 costs_df = load_costs()
 
