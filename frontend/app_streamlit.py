@@ -18,7 +18,7 @@ from streamlit_folium import st_folium
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
 from utils.geocoder import resolve_input
-from backend.feasibility import generate_opportunities
+from core.feasibility import generate_opportunities
 
 
 # =========================================================
