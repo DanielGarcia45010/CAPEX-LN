@@ -60,8 +60,8 @@ def load_costs():
 costs_df = load_costs()
 
 
-def get_unit_cost(city):
-    row = costs_df[costs_df["city"].str.lower() == city.lower()]
+def get_unit_cost(Ciudad):
+    row = costs_df[costs_df["Ciudad"].str.lower() == Ciudad.lower()]
     if row.empty:
         return None
     return int(row.iloc[0]["unit_cost"])
@@ -134,12 +134,12 @@ if section == "Cotización":
             st.stop()
 
         lat, lon = result["lat"], result["lon"]
-        city = result.get("Ciudad", "Bogota")
+        Ciudad = result.get("Ciudad", "Bogota")
 
-        unit_cost = get_unit_cost(city)
+        unit_cost = get_unit_cost(Ciudad)
 
         if unit_cost is None:
-            st.error(f"No hay costo para ciudad: {city}")
+            st.error(f"No hay costo para ciudad: {Ciudad}")
             st.stop()
 
         candidates = engine.query(lon, lat)
@@ -170,7 +170,7 @@ if section == "Cotización":
         st.session_state.analysis = {
             "lat": lat,
             "lon": lon,
-            "city": city,
+            "Ciudad": Ciudad,
             "unit_cost": unit_cost,
             "mrc": mrc,
             "best_point": best_point,
