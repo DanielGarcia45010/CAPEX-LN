@@ -410,14 +410,10 @@ if section == "Cotización":
     )
 )
         # =========================================================
-        # 🧭 MEDICIÓN INTERACTIVA (ESTABLE)
+        # 🧭 MEDICIÓN INTERACTIVA (FIX REAL)
         # =========================================================
 
         st.subheader("📏 Dibuja una línea para medir distancia")
-
-        # Estado para evitar resets
-        if "drawn_lines" not in st.session_state:
-            st.session_state.drawn_lines = []
 
         m2 = folium.Map(
             location=[center_lat, center_lon],
@@ -440,7 +436,7 @@ if section == "Cotización":
                 icon=folium.Icon(color="green")
             ).add_to(m2)
 
-        # DRAW TOOL
+        # DRAW TOOL (IMPORTANTE: sin edit=True)
         draw = Draw(
             draw_options={
                 "polyline": True,
@@ -449,41 +445,36 @@ if section == "Cotización":
                 "circle": False,
                 "marker": False,
                 "circlemarker": False,
-            },
-            edit_options={"edit": True}
+            }
         )
 
         draw.add_to(m2)
 
-        # IMPORTANT: key evita rerun infinito
+        # IMPORTANTE: key + evitar crash de rerun
         output = st_folium(
             m2,
             height=600,
             width=1000,
-            key="map_draw"
+            key="capex_map_draw"
         )
 
         # =========================================================
-        # 📐 FIX: lectura correcta de geometría
+        # 📐 DISTANCIA (FIX API REAL)
         # =========================================================
+
+        total_distance = 0
 
         if output:
 
-            drawings = output.get("all_drawings", [])
+            drawing = output.get("last_active_drawing")
 
-            total_distance = 0
+            if drawing and "geometry" in drawing:
 
-            for d in drawings:
+                geom = drawing["geometry"]
 
-                geom = d.get("geometry", {})
-                geom_type = geom.get("type", None)
-
-                if geom_type == "LineString":
+                if geom.get("type") == "LineString":
 
                     coords = geom.get("coordinates", [])
-
-                    if len(coords) < 2:
-                        continue
 
                     for i in range(len(coords) - 1):
 
