@@ -8,7 +8,6 @@ sys.path.append(str(ROOT))
 
 import streamlit as st
 import json
-import pydeck as pdk
 import math
 import requests
 import folium
@@ -31,7 +30,7 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE
+# STATE (CRÍTICO)
 # =========================================================
 
 if "analysis" not in st.session_state:
@@ -46,7 +45,6 @@ if "line_points" not in st.session_state:
 # =========================================================
 
 def haversine(lon1, lat1, lon2, lat2):
-
     R = 6371000
 
     phi1 = math.radians(lat1)
@@ -107,7 +105,7 @@ if section == "Cotización":
     mrc_cliente = st.number_input("💰 MRC", value=3000000)
 
     # =====================================================
-    # ANALISIS (SOLO CALCULA)
+    # ANALISIS
     # =====================================================
 
     if st.button("Analizar cotización"):
@@ -156,12 +154,12 @@ if section == "Cotización":
             "score": best_score
         }
 
-        # ❗ NO borrar línea automáticamente (esto era el bug)
-        # st.session_state.line_points = []  <-- ELIMINADO
+        # NO reset de línea automático
+        # SOLO reset manual controlado
 
 
     # =====================================================
-    # RENDER ÚNICO (MAPA ÚNICO)
+    # RENDER ÚNICO MAPA (SOLO UNO)
     # =====================================================
 
     if st.session_state.analysis:
@@ -174,59 +172,25 @@ if section == "Cotización":
         st.metric("CAPEX SCORE", f"{data['score']:.4f}")
 
         # =================================================
-        # MAPA PYDECK (VISUAL)
+        # MAPA ÚNICO FOLIUM (INTERACTIVO REAL)
         # =================================================
 
-        layers = [
-            pdk.Layer(
-                "ScatterplotLayer",
-                data=[{"position": [lon, lat]}],
-                get_position="position",
-                get_radius=10,
-                get_fill_color=[255, 0, 0],
-            )
-        ]
+        m = folium.Map(location=[lat, lon], zoom_start=13, tiles="CartoDB dark_matter")
+
+        folium.Marker(
+            [lat, lon],
+            tooltip="CLIENTE",
+            icon=folium.Icon(color="red")
+        ).add_to(m)
 
         if best_point:
-            layers.append(
-                pdk.Layer(
-                    "ScatterplotLayer",
-                    data=[{"position": list(best_point)}],
-                    get_position="position",
-                    get_radius=10,
-                    get_fill_color=[0, 255, 0],
-                )
-            )
+            folium.Marker(
+                [best_point[1], best_point[0]],
+                tooltip="ÓPTIMO",
+                icon=folium.Icon(color="green")
+            ).add_to(m)
 
-        st.pydeck_chart(
-            pdk.Deck(
-                layers=layers,
-                initial_view_state=pdk.ViewState(
-                    latitude=lat,
-                    longitude=lon,
-                    zoom=13
-                ),
-                map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-            )
-        )
-
-        # =================================================
-        # MAPA INTERACTIVO ÚNICO
-        # =================================================
-
-        st.subheader("📍 Click para construir la ruta")
-
-        m = folium.Map(location=[lat, lon], zoom_start=13)
-
-        folium.Marker([lat, lon], tooltip="CLIENTE",
-                      icon=folium.Icon(color="red")).add_to(m)
-
-        if best_point:
-            folium.Marker([best_point[1], best_point[0]],
-                          tooltip="OPTIMO",
-                          icon=folium.Icon(color="green")).add_to(m)
-
-        # línea persistente (SERPIENTE REAL)
+        # línea serpiente persistente
         if len(st.session_state.line_points) > 1:
             folium.PolyLine(
                 [(p[1], p[0]) for p in st.session_state.line_points],
@@ -234,16 +198,16 @@ if section == "Cotización":
                 weight=5
             ).add_to(m)
 
+        # =================================================
+        # CLICK HANDLER (NO REINICIA)
+        # =================================================
+
         map_data = st_folium(
             m,
-            height=650,
-            width=1000,
-            key="stable_map"
+            height=700,
+            width=1100,
+            key="ONLY_MAP"
         )
-
-        # =================================================
-        # CLICK CONTINUO (NO SE REINICIA)
-        # =================================================
 
         if map_data and map_data.get("last_clicked"):
 
@@ -257,7 +221,7 @@ if section == "Cotización":
                 st.session_state.line_points.append(new_point)
 
         # =================================================
-        # DISTANCIA ACUMULADA
+        # DISTANCIA
         # =================================================
 
         total = 0
