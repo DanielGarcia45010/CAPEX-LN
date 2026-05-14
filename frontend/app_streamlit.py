@@ -8,6 +8,8 @@ import json
 import pydeck as pdk
 import requests
 from shapely.geometry import shape
+from utils.geocoder import resolve_input
+
 
 from core.geo_engine_h3 import H3GeoEngine
 
@@ -32,11 +34,25 @@ engine.build(geometries)
 
 
 # ---------------- INPUT ----------------
-coords = st.text_input("lat,lon")
+location_input = st.text_input(
+    "📍 Dirección o coordenadas",
+    placeholder="Ej: Chapinero Bogotá o 4.7110,-74.0721"
+)
 
-if coords:
+if location_input:
 
-    lat, lon = map(float, coords.split(","))
+    result = resolve_input(location_input)
+
+    if result is None:
+
+        st.error("No se pudo encontrar la ubicación")
+
+        st.stop()
+
+    lat = result["lat"]
+    lon = result["lon"]
+
+    st.success(f"Ubicación encontrada: {result['address']}")
 
     # ---------------- BACKEND ----------------
     res = requests.post(API, json={
