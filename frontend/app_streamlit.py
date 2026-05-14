@@ -43,7 +43,7 @@ if "last_click" not in st.session_state:
 
 
 # =========================================================
-# NORMALIZACIÓN (CLAVE)
+# NORMALIZACIÓN
 # =========================================================
 def normalize(text):
     if text is None:
@@ -58,7 +58,7 @@ def normalize(text):
 
 
 # =========================================================
-# COSTOS (ROBUSTO)
+# COSTOS (SIN RENOMBRAR COLUMNAS)
 # =========================================================
 @st.cache_data
 def load_costs():
@@ -69,17 +69,10 @@ def load_costs():
         engine="python"
     )
 
-    # limpieza defensiva
     df.columns = df.columns.str.strip()
 
-    # normalización de columnas esperadas
-    df = df.rename(columns={
-        "Ciudad": "city",
-        "Valor Unitario": "unit_cost"
-    })
-
-    df["city"] = df["city"].astype(str).str.strip()
-    df["city_norm"] = df["city"].apply(normalize)
+    # SOLO NORMALIZACIÓN, NO RENOMBRES
+    df["Ciudad_norm"] = df["Ciudad"].astype(str).apply(normalize)
 
     return df
 
@@ -87,20 +80,18 @@ def load_costs():
 costs_df = load_costs()
 
 
-def get_unit_cost(city):
-    city_norm = normalize(city)
+def get_unit_cost(ciudad):
+    ciudad_norm = normalize(ciudad)
 
-    # match exacto primero
-    row = costs_df[costs_df["city_norm"] == city_norm]
+    row = costs_df[costs_df["Ciudad_norm"] == ciudad_norm]
 
-    # fallback inteligente
     if row.empty:
-        row = costs_df[costs_df["city_norm"].str.contains(city_norm, na=False)]
+        row = costs_df[costs_df["Ciudad_norm"].str.contains(ciudad_norm, na=False)]
 
     if row.empty:
         return None
 
-    return int(row.iloc[0]["unit_cost"])
+    return int(row.iloc[0]["Valor Unitario"])
 
 
 # =========================================================
@@ -125,7 +116,7 @@ def haversine(lon1, lat1, lon2, lat2):
 
 
 # =========================================================
-# DATA + ENGINE
+# DATA
 # =========================================================
 @st.cache_data
 def load_data():
@@ -173,7 +164,6 @@ if section == "Cotización":
 
         lat, lon = result["lat"], result["lon"]
 
-        # 🔥 NO dependemos de geocoder (esto era el bug real)
         city_raw = (
             result.get("city")
             or result.get("municipality")
@@ -181,7 +171,6 @@ if section == "Cotización":
             or ""
         )
 
-        # fallback inteligente: intenta extraer Bogotá etc desde string
         city = city_raw.split(",")[0].strip() if city_raw else "Bogota"
 
         unit_cost = get_unit_cost(city)
@@ -239,7 +228,6 @@ if st.session_state.analysis:
 
     if st.button("Evaluar factibilidad"):
 
-        # 🔥 costo real luego será distancia * unit_cost
         costo_obra = unit_cost * 10
 
         ops = generate_opportunities(
