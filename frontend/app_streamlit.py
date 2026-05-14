@@ -31,14 +31,14 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE (CRÍTICO PARA ESTABILIDAD)
+# STATE ESTABLE
 # =========================================================
-
-if "line_points" not in st.session_state:
-    st.session_state.line_points = []
 
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
+
+if "line_points" not in st.session_state:
+    st.session_state.line_points = []
 
 
 # =========================================================
@@ -107,7 +107,7 @@ if section == "Cotización":
     mrc_cliente = st.number_input("💰 MRC", value=3000000)
 
     # =====================================================
-    # BOTÓN DE ANÁLISIS (SOLO CÁLCULO, NO MAPA)
+    # ANÁLISIS (NO UI DE MAPA AQUÍ)
     # =====================================================
 
     if st.button("Analizar cotización"):
@@ -122,10 +122,6 @@ if section == "Cotización":
         lon = result["lon"]
 
         st.success(result["address"])
-
-        # =================================================
-        # CAPEX ENGINE
-        # =================================================
 
         candidates = engine.query(lon, lat)
 
@@ -153,6 +149,7 @@ if section == "Cotización":
                 best_score = score
                 best_point = (c.x, c.y)
 
+        # 🔥 guardamos TODO en estado
         st.session_state.analysis = {
             "lat": lat,
             "lon": lon,
@@ -160,8 +157,12 @@ if section == "Cotización":
             "score": best_score
         }
 
+        # 🔥 reset correcto de línea SOLO cuando cambia análisis
+        st.session_state.line_points = []
+
+
     # =====================================================
-    # SI HAY DATA → MOSTRAR MAPA (SIEMPRE FUERA DEL BOTÓN)
+    # RENDER SI HAY ANÁLISIS
     # =====================================================
 
     if st.session_state.analysis:
@@ -174,7 +175,7 @@ if section == "Cotización":
         st.metric("CAPEX SCORE", f"{data['score']:.4f}")
 
         # =================================================
-        # MAPA PYDECK (VISUAL)
+        # MAPA PYDECK (SOLO VISUAL)
         # =================================================
 
         layers = [
@@ -182,7 +183,7 @@ if section == "Cotización":
                 "ScatterplotLayer",
                 data=[{"position": [lon, lat]}],
                 get_position="position",
-                get_radius=10,
+                get_radius": 10,
                 get_fill_color=[255, 0, 0],
             )
         ]
@@ -193,7 +194,7 @@ if section == "Cotización":
                     "ScatterplotLayer",
                     data=[{"position": list(best_point)}],
                     get_position="position",
-                    get_radius=10,
+                    get_radius": 10,
                     get_fill_color=[0, 255, 0],
                 )
             )
@@ -211,17 +212,25 @@ if section == "Cotización":
         )
 
         # =================================================
-        # MAPA INTERACTIVO (ESTABLE REAL)
+        # MAPA INTERACTIVO ÚNICO (ESTABLE)
         # =================================================
 
-        st.subheader("📍 Click en el mapa para construir la línea")
+        st.subheader("📍 Click para construir la ruta")
 
         m = folium.Map(location=[lat, lon], zoom_start=13)
 
-        folium.Marker([lat, lon], tooltip="CLIENTE", icon=folium.Icon(color="red")).add_to(m)
+        folium.Marker(
+            [lat, lon],
+            tooltip="CLIENTE",
+            icon=folium.Icon(color="red")
+        ).add_to(m)
 
         if best_point:
-            folium.Marker([best_point[1], best_point[0]], tooltip="OPTIMO", icon=folium.Icon(color="green")).add_to(m)
+            folium.Marker(
+                [best_point[1], best_point[0]],
+                tooltip="OPTIMO",
+                icon=folium.Icon(color="green")
+            ).add_to(m)
 
         # línea persistente
         if len(st.session_state.line_points) > 1:
@@ -231,10 +240,15 @@ if section == "Cotización":
                 weight=5
             ).add_to(m)
 
-        map_data = st_folium(m, height=600, width=1000, key="map_click")
+        map_data = st_folium(
+            m,
+            height=650,
+            width=1000,
+            key="stable_map"
+        )
 
         # =================================================
-        # CLICK STABLE (SIN DUPLICADOS)
+        # CLICK HANDLER (ESTABLE Y SIN DUPLICADOS)
         # =================================================
 
         if map_data and map_data.get("last_clicked"):
@@ -249,25 +263,51 @@ if section == "Cotización":
                 st.session_state.line_points.append(new_point)
 
         # =================================================
-        # DISTANCIA
+        # DISTANCIA TOTAL
         # =================================================
 
         total = 0
 
+        for i in range(len(st.session_state.line_points) - 1):
+
+            lon1, lat1 = st.session_state.line_points[i]
+            lon2, lat2 = st.session_state.line_points[i + 1]
+
+            total += haversine(lon1, lat1, lon2, lat2)
+
         if len(st.session_state.line_points) > 1:
-
-            for i in range(len(st.session_state.line_points) - 1):
-
-                lon1, lat1 = st.session_state.line_points[i]
-                lon2, lat2 = st.session_state.line_points[i + 1]
-
-                total += haversine(lon1, lat1, lon2, lat2)
-
             st.success(f"📏 Distancia total: {total:,.2f} metros")
 
-        col1, col2 = st.columns(2)
+        # =================================================
+        # RESET
+        # =================================================
 
-        with col1:
-            if st.button("Reset línea"):
-                st.session_state.line_points = []
-                st.rerun()
+        if st.button("Reset línea"):
+            st.session_state.line_points = []
+            st.rerun()
+
+
+# =========================================================
+# FACTIBILIDAD
+# =========================================================
+
+else:
+
+    st.header("💰 Factibilidad")
+
+    costo = st.number_input("Costo obra", value=100000000)
+    mrc = st.number_input("MRC", value=3000000)
+    term = st.number_input("Term", value=24)
+
+    if st.button("Generar"):
+
+        res = requests.post(
+            "http://localhost:8000/feasibility",
+            json={
+                "costoObraCivil": int(costo),
+                "mrc": int(mrc),
+                "term": int(term)
+            }
+        )
+
+        st.write(res.json())
