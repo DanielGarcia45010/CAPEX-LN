@@ -87,8 +87,7 @@ engine = build_engine()
 # =========================================================
 @st.cache_data
 def load_costs():
-    # columnas: city, unit_cost
-    return pd.read_excel("costs.xlsx")
+    return pd.read_csv("costs.csv")
 
 
 costs_df = load_costs()
