@@ -12,7 +12,7 @@ import pandas as pd
 import unicodedata
 import re
 
-from shapely.geometry import shape
+from shapely.geometry import shape, LineString
 from collections import defaultdict
 from streamlit_folium import st_folium
 
@@ -35,6 +35,9 @@ st.title("🚀 CAPEX ENGINE")
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
 
+if "line_points" not in st.session_state:
+    st.session_state.line_points = []
+
 
 # =========================================================
 # NORMALIZACIÓN
@@ -50,47 +53,20 @@ def normalize(text):
     return text
 
 
-def extract_city(result):
-    raw = (
-        result.get("city")
-        or result.get("municipality")
-        or result.get("region")
-        or result.get("address")
-        or ""
-    )
-
-    if not raw:
-        return "bogota"
-
-    city = raw.split(",")[0].strip()
-    city = re.sub(r"\d+", "", city)
-
-    return city if city else "bogota"
-
-
 # =========================================================
-# COSTOS (EXCEL REAL)
+# COSTOS (EXCEL REAL, SOLO 2 COLUMNAS)
 # =========================================================
 @st.cache_data
 def load_costs():
+    df = pd.read_excel("costs.xlsx", engine="openpyxl")
 
-    file_path = "costs.xlsx"  # 👈 OBLIGATORIO: archivo real
-
-    df = pd.read_excel(file_path, engine="openpyxl")
-
+    # limpieza estricta SIN renombrar columnas
     df.columns = df.columns.str.strip()
 
-    # validación estricta
     if "Ciudad" not in df.columns or "Valor Unitario" not in df.columns:
-        raise ValueError(
-            f"El Excel debe contener columnas: 'Ciudad' y 'Valor Unitario'. "
-            f"Se encontraron: {df.columns}"
-        )
+        raise ValueError("El Excel debe tener: Ciudad | Valor Unitario")
 
-    df["Ciudad"] = df["Ciudad"].astype(str).str.strip()
-
-    df["Ciudad_norm"] = df["Ciudad"].apply(normalize)
-
+    df["Ciudad"] = df["Ciudad"].astype(str).apply(normalize)
     df["Valor Unitario"] = pd.to_numeric(df["Valor Unitario"], errors="coerce")
 
     return df
@@ -100,13 +76,9 @@ costs_df = load_costs()
 
 
 def get_unit_cost(city):
+    city = normalize(city)
 
-    city_norm = normalize(city)
-
-    row = costs_df[costs_df["Ciudad_norm"] == city_norm]
-
-    if row.empty:
-        row = costs_df[costs_df["Ciudad_norm"].str.contains(city_norm, na=False)]
+    row = costs_df[costs_df["Ciudad"] == city]
 
     if row.empty:
         return None
@@ -115,7 +87,7 @@ def get_unit_cost(city):
 
 
 # =========================================================
-# HELPERS
+# DISTANCIA REAL
 # =========================================================
 def haversine(lon1, lat1, lon2, lat2):
     R = 6371000
@@ -136,7 +108,7 @@ def haversine(lon1, lat1, lon2, lat2):
 
 
 # =========================================================
-# DATA
+# DATA + ENGINE
 # =========================================================
 @st.cache_data
 def load_data():
@@ -165,7 +137,7 @@ section = st.sidebar.radio("Menú", ["Cotización", "Factibilidad"])
 
 
 # =========================================================
-# COTIZACIÓN
+# COTIZACIÓN (MAPA + LÍNEA)
 # =========================================================
 if section == "Cotización":
 
@@ -184,12 +156,11 @@ if section == "Cotización":
 
         lat, lon = result["lat"], result["lon"]
 
-        city = extract_city(result)
+        city = "bogota"  # fijo si no hay fuente confiable
         unit_cost = get_unit_cost(city)
 
         if unit_cost is None:
-            st.error(f"No se encontró tarifa para ciudad: {city}")
-            st.write(costs_df["Ciudad"].unique())
+            st.error("No se encontró costo unitario en Excel")
             st.stop()
 
         candidates = engine.query(lon, lat)
@@ -209,39 +180,88 @@ if section == "Cotización":
             d = haversine(lon, lat, c.x, c.y)
             density = density_map[h]
 
-            presence_bonus = 1 if density > 3 else 0
-            score = capex_score(d, density, presence_bonus)
+            score = capex_score(d, density, 0)
 
             if score > best_score:
                 best_score = score
                 best_point = (c.x, c.y)
 
         st.session_state.analysis = {
-            "lat": lat,
-            "lon": lon,
-            "city": city,
+            "client": (lon, lat),
+            "best": best_point,
             "unit_cost": unit_cost,
-            "mrc": mrc,
-            "best_point": best_point,
-            "score": best_score
+            "mrc": mrc
         }
 
-        st.success(f"✔ Ciudad detectada: {city} | costo: {unit_cost}")
+        st.session_state.line_points = []
 
 
 # =========================================================
-# FACTIBILIDAD
+# MAPA + DIBUJO DE LÍNEA
 # =========================================================
 if st.session_state.analysis:
 
     data = st.session_state.analysis
 
-    mrc = data["mrc"]
+    client = data["client"]
+    best = data["best"]
     unit_cost = data["unit_cost"]
+
+    m = folium.Map(location=[client[1], client[0]], zoom_start=13)
+
+    folium.Marker([client[1], client[0]], tooltip="Cliente", icon=folium.Icon(color="red")).add_to(m)
+
+    if best:
+        folium.Marker([best[1], best[0]], tooltip="Óptimo", icon=folium.Icon(color="green")).add_to(m)
+
+    # línea acumulada
+    if len(st.session_state.line_points) > 1:
+        folium.PolyLine(
+            [(p[1], p[0]) for p in st.session_state.line_points],
+            color="cyan",
+            weight=5
+        ).add_to(m)
+
+    output = st_folium(m, height=650, width=1100)
+
+    # click continuo (NO reinicia mapa)
+    if output and output.get("last_clicked"):
+        p = output["last_clicked"]
+        new = (p["lng"], p["lat"])
+
+        if not st.session_state.line_points or st.session_state.line_points[-1] != new:
+            st.session_state.line_points.append(new)
+
+    # distancia total real
+    total = 0
+    for i in range(len(st.session_state.line_points) - 1):
+        lon1, lat1 = st.session_state.line_points[i]
+        lon2, lat2 = st.session_state.line_points[i + 1]
+        total += haversine(lon1, lat1, lon2, lat2)
+
+    st.metric("Distancia total (m)", f"{total:,.2f}")
+
+
+# =========================================================
+# FACTIBILIDAD (SOLO AQUÍ DECIDE)
+# =========================================================
+if st.session_state.analysis:
+
+    data = st.session_state.analysis
+    unit_cost = data["unit_cost"]
+    mrc = data["mrc"]
 
     if st.button("Evaluar factibilidad"):
 
-        costo_obra = unit_cost * 10  # luego conectas distancia real
+        # costo real correcto
+        distance = 0
+
+        for i in range(len(st.session_state.line_points) - 1):
+            lon1, lat1 = st.session_state.line_points[i]
+            lon2, lat2 = st.session_state.line_points[i + 1]
+            distance += haversine(lon1, lat1, lon2, lat2)
+
+        costo_obra = distance * unit_cost
 
         ops = generate_opportunities(
             costo=costo_obra,
@@ -249,12 +269,8 @@ if st.session_state.analysis:
             term_input=24
         )
 
-        feasible = len(ops) > 0
-
-        if feasible:
+        if len(ops) > 0:
             st.success("🟢 FACTIBILIDAD POSITIVA")
-            st.json(ops)
         else:
             st.error("🔴 FACTIBILIDAD NEGATIVA")
-            st.write("Opciones de mejora:")
             st.json(ops)
