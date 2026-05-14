@@ -30,7 +30,7 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE (CRÍTICO)
+# STATE ESTABLE (CLAVE)
 # =========================================================
 
 if "analysis" not in st.session_state:
@@ -38,6 +38,9 @@ if "analysis" not in st.session_state:
 
 if "line_points" not in st.session_state:
     st.session_state.line_points = []
+
+if "last_click" not in st.session_state:
+    st.session_state.last_click = None
 
 
 # =========================================================
@@ -154,12 +157,9 @@ if section == "Cotización":
             "score": best_score
         }
 
-        # NO reset de línea automático
-        # SOLO reset manual controlado
-
 
     # =====================================================
-    # RENDER ÚNICO MAPA (SOLO UNO)
+    # RENDER (SIEMPRE MISMO MAPA BASE)
     # =====================================================
 
     if st.session_state.analysis:
@@ -172,25 +172,20 @@ if section == "Cotización":
         st.metric("CAPEX SCORE", f"{data['score']:.4f}")
 
         # =================================================
-        # MAPA ÚNICO FOLIUM (INTERACTIVO REAL)
+        # MAPA BASE (NO SE RECREA CON CADA CLICK)
         # =================================================
 
         m = folium.Map(location=[lat, lon], zoom_start=13, tiles="CartoDB dark_matter")
 
-        folium.Marker(
-            [lat, lon],
-            tooltip="CLIENTE",
-            icon=folium.Icon(color="red")
-        ).add_to(m)
+        folium.Marker([lat, lon], tooltip="CLIENTE",
+                      icon=folium.Icon(color="red")).add_to(m)
 
         if best_point:
-            folium.Marker(
-                [best_point[1], best_point[0]],
-                tooltip="ÓPTIMO",
-                icon=folium.Icon(color="green")
-            ).add_to(m)
+            folium.Marker([best_point[1], best_point[0]],
+                          tooltip="ÓPTIMO",
+                          icon=folium.Icon(color="green")).add_to(m)
 
-        # línea serpiente persistente
+        # línea persistente
         if len(st.session_state.line_points) > 1:
             folium.PolyLine(
                 [(p[1], p[0]) for p in st.session_state.line_points],
@@ -199,26 +194,32 @@ if section == "Cotización":
             ).add_to(m)
 
         # =================================================
-        # CLICK HANDLER (NO REINICIA)
+        # MAPA INTERACTIVO (ESTABLE SIN PARPADEO)
         # =================================================
 
-        map_data = st_folium(
+        output = st_folium(
             m,
             height=700,
             width=1100,
             key="ONLY_MAP"
         )
 
-        if map_data and map_data.get("last_clicked"):
+        # =================================================
+        # CONTROL DE CLICK (EVITA RE-TRIGGERS)
+        # =================================================
 
-            click = map_data["last_clicked"]
+        click = output.get("last_clicked") if output else None
+
+        if click:
+
             new_point = (click["lng"], click["lat"])
 
-            if (
-                not st.session_state.line_points
-                or st.session_state.line_points[-1] != new_point
-            ):
+            if new_point != st.session_state.last_click:
+                st.session_state.last_click = new_point
                 st.session_state.line_points.append(new_point)
+
+                # 🔥 FORZAR rerun SOLO cuando hay nuevo punto
+                st.rerun()
 
         # =================================================
         # DISTANCIA
@@ -242,6 +243,7 @@ if section == "Cotización":
 
         if st.button("Reset línea"):
             st.session_state.line_points = []
+            st.session_state.last_click = None
             st.rerun()
 
 
