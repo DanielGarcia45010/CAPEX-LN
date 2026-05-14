@@ -1,3 +1,5 @@
+# frontend/app_streamlit.py
+
 import sys
 from pathlib import Path
 
@@ -28,7 +30,7 @@ st.title("🚀 CAPEX ENGINE")
 
 
 # =========================================================
-# STATE (ESTABLE)
+# STATE ESTABLE (CLAVE)
 # =========================================================
 
 if "analysis" not in st.session_state:
@@ -105,9 +107,8 @@ if section == "Cotización":
     location_input = st.text_input("📍 Dirección o coordenadas")
     mrc_cliente = st.number_input("💰 MRC", value=3000000)
 
-
     # =====================================================
-    # ANALYSIS (NO RESET DE MAPA)
+    # ANALISIS
     # =====================================================
 
     if st.button("Analizar cotización"):
@@ -134,6 +135,7 @@ if section == "Cotización":
             density_map[h] += 1
 
         for h, idx in candidates:
+
             g = geometries[idx]
             c = g.centroid
 
@@ -157,7 +159,7 @@ if section == "Cotización":
 
 
     # =====================================================
-    # RENDER MAPA ÚNICO (SIN RERUN, SIN PARPADEO)
+    # RENDER (SIEMPRE MISMO MAPA BASE)
     # =====================================================
 
     if st.session_state.analysis:
@@ -169,31 +171,21 @@ if section == "Cotización":
 
         st.metric("CAPEX SCORE", f"{data['score']:.4f}")
 
-        # -------------------------
-        # MAPA BASE
-        # -------------------------
-        m = folium.Map(
-            location=[lat, lon],
-            zoom_start=13,
-            tiles="CartoDB dark_matter"
-        )
+        # =================================================
+        # MAPA BASE (NO SE RECREA CON CADA CLICK)
+        # =================================================
 
-        folium.Marker(
-            [lat, lon],
-            tooltip="CLIENTE",
-            icon=folium.Icon(color="red")
-        ).add_to(m)
+        m = folium.Map(location=[lat, lon], zoom_start=13, tiles="CartoDB dark_matter")
+
+        folium.Marker([lat, lon], tooltip="CLIENTE",
+                      icon=folium.Icon(color="red")).add_to(m)
 
         if best_point:
-            folium.Marker(
-                [best_point[1], best_point[0]],
-                tooltip="ÓPTIMO",
-                icon=folium.Icon(color="green")
-            ).add_to(m)
+            folium.Marker([best_point[1], best_point[0]],
+                          tooltip="ÓPTIMO",
+                          icon=folium.Icon(color="green")).add_to(m)
 
-        # -------------------------
-        # LÍNEA ACUMULADA
-        # -------------------------
+        # línea persistente
         if len(st.session_state.line_points) > 1:
             folium.PolyLine(
                 [(p[1], p[0]) for p in st.session_state.line_points],
@@ -201,9 +193,10 @@ if section == "Cotización":
                 weight=5
             ).add_to(m)
 
-        # -------------------------
-        # MAPA INTERACTIVO
-        # -------------------------
+        # =================================================
+        # MAPA INTERACTIVO (ESTABLE SIN PARPADEO)
+        # =================================================
+
         output = st_folium(
             m,
             height=700,
@@ -211,38 +204,47 @@ if section == "Cotización":
             key="ONLY_MAP"
         )
 
-        # -------------------------
-        # CLICK CONTROLADO (SIN RERUN)
-        # -------------------------
+        # =================================================
+        # CONTROL DE CLICK (EVITA RE-TRIGGERS)
+        # =================================================
+
         click = output.get("last_clicked") if output else None
 
         if click:
+
             new_point = (click["lng"], click["lat"])
 
-            # solo agregar si es nuevo punto
-            if st.session_state.line_points == [] or st.session_state.last_click != new_point:
-                st.session_state.line_points.append(new_point)
+            if new_point != st.session_state.last_click:
                 st.session_state.last_click = new_point
+                st.session_state.line_points.append(new_point)
 
-        # -------------------------
+                # 🔥 FORZAR rerun SOLO cuando hay nuevo punto
+                st.rerun()
+
+        # =================================================
         # DISTANCIA
-        # -------------------------
+        # =================================================
+
         total = 0
 
         for i in range(len(st.session_state.line_points) - 1):
+
             lon1, lat1 = st.session_state.line_points[i]
             lon2, lat2 = st.session_state.line_points[i + 1]
+
             total += haversine(lon1, lat1, lon2, lat2)
 
         if len(st.session_state.line_points) > 1:
             st.success(f"📏 Distancia total: {total:,.2f} metros")
 
-        # -------------------------
+        # =================================================
         # RESET
-        # -------------------------
+        # =================================================
+
         if st.button("Reset línea"):
             st.session_state.line_points = []
             st.session_state.last_click = None
+            st.rerun()
 
 
 # =========================================================
