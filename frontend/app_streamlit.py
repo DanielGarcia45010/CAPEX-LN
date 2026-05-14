@@ -409,6 +409,72 @@ if section == "Cotización":
             map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
     )
 )
+        # =========================================================
+# 🧭 MEDICIÓN INTERACTIVA (SIN AFECTAR PYDECK)
+# =========================================================
+
+st.subheader("📏 Medición de distancia dibujando en el mapa")
+
+m2 = folium.Map(
+    location=[center_lat, center_lon],
+    zoom_start=zoom,
+    tiles="CartoDB dark_matter"
+)
+
+# Cliente
+folium.Marker(
+    [lat, lon],
+    tooltip="CLIENTE",
+    icon=folium.Icon(color="red")
+).add_to(m2)
+
+# Mejor punto
+if best_point:
+    folium.Marker(
+        [best_point[1], best_point[0]],
+        tooltip="MEJOR CIERRE",
+        icon=folium.Icon(color="green")
+    ).add_to(m2)
+
+# Herramienta de dibujo (líneas)
+draw = Draw(
+    draw_options={
+        "polyline": True,
+        "rectangle": False,
+        "polygon": False,
+        "circle": False,
+        "marker": False,
+        "circlemarker": False,
+    },
+    edit_options={"edit": False}
+)
+
+draw.add_to(m2)
+
+output = st_folium(m2, height=600, width=1000)
+
+# =========================================================
+# 📐 CÁLCULO DISTANCIA LÍNEA DIBUJADA
+# =========================================================
+
+if output and output.get("all_drawings"):
+
+    total_distance = 0
+
+    for d in output["all_drawings"]:
+
+        if d["geometry"]["type"] == "LineString":
+
+            coords = d["geometry"]["coordinates"]
+
+            for i in range(len(coords) - 1):
+
+                lon1, lat1 = coords[i]
+                lon2, lat2 = coords[i + 1]
+
+                total_distance += haversine(lon1, lat1, lon2, lat2)
+
+    st.success(f"📏 Distancia total dibujada: {total_distance:,.2f} metros")
 
 
 # =========================================================
