@@ -260,12 +260,14 @@ if section == "Cotización":
                 "ScatterplotLayer",
                 data=[
                     {
-                        "position": [lon, lat]
+                        "position": [lon, lat],
+                        "name": "CLIENTE"
                     }
                 ],
                 get_position="position",
                 get_radius=10,
-                get_fill_color=[255, 0, 0]
+                get_fill_color=[255, 0, 0],
+                pickable=True
             )
         )
 
@@ -277,12 +279,14 @@ if section == "Cotización":
                     "ScatterplotLayer",
                     data=[
                         {
-                            "position": list(best_point)
+                            "position": list(best_point),
+                            "name":"Mejor Cierre"
                         }
                     ],
                     get_position="position",
                     get_radius=10,
-                    get_fill_color=[0, 255, 0]
+                    get_fill_color=[0, 255, 0],
+                    pickable=True
                 )
             )
 
