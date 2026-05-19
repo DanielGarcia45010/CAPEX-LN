@@ -21,16 +21,30 @@ from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
 from utils.geocoder import resolve_input
 
-
 # =========================================================
 # CONFIG
 # =========================================================
 st.set_page_config(page_title="CAPEX ENGINE", layout="wide")
-st.title("🚀 CAPEX ENGINE")
+
+def load_css():
+    with open("styles.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+load_css()
+
+
+st.image("logo.jpg", width=350)
+
+st.markdown("""
+<h1 style="margin-bottom:0;">CAPEX ENGINE</h1>
+<p style="color:#6B7280;margin-top:0;">
+Liberty Networks · Plataforma de evaluación CAPEX
+</p>
+""", unsafe_allow_html=True)
 
 
 # =========================================================
-# STATE
+# SESSION STATE
 # =========================================================
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
@@ -56,7 +70,7 @@ def normalize(text):
 
 
 # =========================================================
-# CITY EXTRACTION
+# EXTRACT CITY
 # =========================================================
 def extract_city(result):
 
@@ -71,50 +85,90 @@ def extract_city(result):
     ]
 
     for value in possible:
+
         if value and str(value).strip():
             return normalize(value)
 
     address = result.get("address", "")
 
     if address:
-        first = address.split(",")[0]
-        return normalize(first)
+        return normalize(address.split(",")[0])
 
     return "bogota"
 
 
 # =========================================================
-# COSTS
+# COSTOS AUTOMÁTICOS DESDE EXCEL
 # =========================================================
 @st.cache_data
 def load_costs():
 
-    df = pd.read_excel("costs.xlsx", engine="openpyxl")
-
-    df.columns = df.columns.str.strip()
-
-    if "Ciudad" not in df.columns:
-        raise ValueError("Falta columna Ciudad")
-
-    if "Valor Unitario" not in df.columns:
-        raise ValueError("Falta columna Valor Unitario")
-
-    df["Ciudad"] = df["Ciudad"].astype(str).apply(normalize)
-
-    # =====================================================
-    # CONVERSIÓN CORRECTA
-    # 10.500,6125 -> 10500.6125
-    # =====================================================
-    df["Valor Unitario"] = (
-        df["Valor Unitario"]
-        .astype(str)
-        .str.replace(".", "", regex=False)
-        .str.replace(",", ".", regex=False)
+    df = pd.read_excel(
+        "costs.xlsx",
+        engine="openpyxl"
     )
 
-    df["Valor Unitario"] = pd.to_numeric(
-        df["Valor Unitario"],
-        errors="coerce"
+    # limpiar nombres columnas
+    df.columns = (
+        df.columns
+        .astype(str)
+        .str.strip()
+    )
+
+    if "Ciudad" not in df.columns:
+        raise ValueError(
+            "Falta columna Ciudad"
+        )
+
+    if "Valor Unitario" not in df.columns:
+        raise ValueError(
+            "Falta columna Valor Unitario"
+        )
+
+    # =====================================================
+    # NORMALIZAR CIUDADES
+    # =====================================================
+    df["Ciudad"] = (
+        df["Ciudad"]
+        .astype(str)
+        .apply(normalize)
+    )
+
+    # =====================================================
+    # CONVERSIÓN CORRECTA DE DECIMALES
+    # =====================================================
+    def parse_value(x):
+
+        if pd.isna(x):
+            return 0.0
+
+        s = str(x).strip()
+
+        # Caso Excel latino:
+        # 10.500,6125 -> 10500.6125
+        if "," in s and "." in s:
+            s = s.replace(".", "")
+            s = s.replace(",", ".")
+
+        # Caso:
+        # 10500,6125
+        elif "," in s:
+            s = s.replace(",", ".")
+
+        try:
+            return float(s)
+
+        except:
+            return 0.0
+
+    df["Valor Unitario"] = (
+        df["Valor Unitario"]
+        .apply(parse_value)
+    )
+
+    # eliminar vacíos
+    df = df.dropna(
+        subset=["Ciudad", "Valor Unitario"]
     )
 
     return df
@@ -127,22 +181,24 @@ def get_unit_cost(ciudad):
 
     ciudad = normalize(ciudad)
 
+    # 1. MATCH EXACTO
     row = costs_df[costs_df["Ciudad"] == ciudad]
 
+    # 2. FIX CRÍTICO: reconstrucción flexible por tokens
     if row.empty:
 
-        row = costs_df[
-            costs_df["Ciudad"].str.contains(
-                ciudad,
-                na=False
-            )
-        ]
+        def match_loose(x):
+            x_tokens = set(x.split())
+            c_tokens = set(ciudad.split())
+            return len(x_tokens & c_tokens) > 0
 
+        row = costs_df[costs_df["Ciudad"].apply(match_loose)]
+
+    # 3. FALLBACK BOGOTÁ
     if row.empty:
         row = costs_df[costs_df["Ciudad"] == "bogota"]
 
     return float(row.iloc[0]["Valor Unitario"])
-
 
 # =========================================================
 # DISTANCE
@@ -171,20 +227,27 @@ def haversine(lon1, lat1, lon2, lat2):
 
 
 # =========================================================
-# FEASIBILITY RULE
+# FEASIBILITY
 # =========================================================
-def evaluate_positive(costo, mrc, term):
+def evaluate_positive(
+    costo,
+    nrc,
+    mrc,
+    term
+):
 
     if mrc <= 0:
         return False
 
-    payback = costo / mrc
+    payback = (
+        costo - nrc
+    ) / mrc
 
     return payback <= (term / 2)
 
 
 # =========================================================
-# NEGATIVE OPTIONS
+# GENERATE OPTIONS
 # =========================================================
 def generate_negative_options(
     costo,
@@ -197,27 +260,22 @@ def generate_negative_options(
     # =====================================================
     # OPORTUNIDAD 1
     # =====================================================
-    term1 = term_entrada
-
     mrc1 = math.ceil(
-        (2 * costo) / term1
+        (2 * costo) / term_entrada
     )
 
     if mrc1 <= mrc_entrada:
-        mrc1 = int(mrc_entrada) + 1
-
-    nrc1 = 0
-
-    payback1 = (
-        costo - nrc1
-    ) / mrc1
+        mrc1 = mrc_entrada + 1
 
     opportunities.append({
         "oportunidad": 1,
-        "term": int(term1),
+        "term": term_entrada,
         "mrc": int(mrc1),
-        "nrc": int(nrc1),
-        "paybackMeses": round(payback1, 2)
+        "nrc": 0,
+        "paybackMeses": round(
+            costo / mrc1,
+            2
+        )
     })
 
     # =====================================================
@@ -225,10 +283,7 @@ def generate_negative_options(
     # =====================================================
     term2 = 36
 
-    mrc2 = max(
-        int(mrc_entrada * 1.2),
-        int(mrc1 * 0.75)
-    )
+    mrc2 = int(mrc1 * 0.75)
 
     if mrc2 == mrc1:
         mrc2 += 1
@@ -242,40 +297,15 @@ def generate_negative_options(
         )
     )
 
-    max_nrc = costo * 0.4
-
-    if nrc2 > max_nrc:
-
-        mrc2 = math.ceil(
-            (costo - max_nrc)
-            / (term2 / 2)
-        )
-
-        while mrc2 in [
-            mrc_entrada,
-            mrc1
-        ]:
-            mrc2 += 1
-
-        nrc2 = math.ceil(
-            max(
-                0,
-                costo - (
-                    mrc2 * (term2 / 2)
-                )
-            )
-        )
-
-    payback2 = (
-        costo - nrc2
-    ) / mrc2
-
     opportunities.append({
         "oportunidad": 2,
-        "term": int(term2),
+        "term": term2,
         "mrc": int(mrc2),
         "nrc": int(nrc2),
-        "paybackMeses": round(payback2, 2)
+        "paybackMeses": round(
+            (costo - nrc2) / mrc2,
+            2
+        )
     })
 
     # =====================================================
@@ -283,16 +313,9 @@ def generate_negative_options(
     # =====================================================
     term3 = 24
 
-    mrc3 = max(
-        int(mrc_entrada * 1.4),
-        int(mrc2 * 0.9)
-    )
+    mrc3 = int(mrc2 * 1.2)
 
-    while mrc3 in [
-        mrc_entrada,
-        mrc1,
-        mrc2
-    ]:
+    while mrc3 in [mrc1, mrc2]:
         mrc3 += 1
 
     nrc3 = math.ceil(
@@ -304,39 +327,15 @@ def generate_negative_options(
         )
     )
 
-    if nrc3 > max_nrc:
-
-        mrc3 = math.ceil(
-            (costo - max_nrc)
-            / (term3 / 2)
-        )
-
-        while mrc3 in [
-            mrc_entrada,
-            mrc1,
-            mrc2
-        ]:
-            mrc3 += 1
-
-        nrc3 = math.ceil(
-            max(
-                0,
-                costo - (
-                    mrc3 * (term3 / 2)
-                )
-            )
-        )
-
-    payback3 = (
-        costo - nrc3
-    ) / mrc3
-
     opportunities.append({
         "oportunidad": 3,
-        "term": int(term3),
+        "term": term3,
         "mrc": int(mrc3),
         "nrc": int(nrc3),
-        "paybackMeses": round(payback3, 2)
+        "paybackMeses": round(
+            (costo - nrc3) / mrc3,
+            2
+        )
     })
 
     return opportunities
@@ -368,7 +367,10 @@ geometries = load_data()
 @st.cache_resource
 def build_engine():
 
-    engine = H3GeoEngine(resolution=9)
+    engine = H3GeoEngine(
+        resolution=9
+    )
+
     engine.build(geometries)
 
     return engine
@@ -380,11 +382,33 @@ engine = build_engine()
 # =========================================================
 # UI
 # =========================================================
+
+# ✅ estado inicial
+if "section" not in st.session_state:
+    st.session_state.section = "Cotización"
+
+# ✅ trigger para navegación
+if "go_factibilidad" not in st.session_state:
+    st.session_state.go_factibilidad = False
+
+
+# ✅ CONTROL DEL RADIO (CLAVE)
+options = ["Cotización", "Factibilidad"]
+
+if st.session_state.go_factibilidad:
+    default_index = 1  # Factibilidad
+    st.session_state.go_factibilidad = False
+else:
+    default_index = options.index(st.session_state.section)
+
 section = st.sidebar.radio(
     "Menú",
-    ["Cotización", "Factibilidad"]
+    options,
+    index=default_index
 )
 
+# ✅ sincroniza estado
+st.session_state.section = section
 
 # =========================================================
 # COTIZACIÓN
@@ -405,12 +429,16 @@ if section == "Cotización":
 
     if st.button("Analizar cotización"):
 
-        result = resolve_input(location_input)
+        result = resolve_input(
+            location_input
+        )
 
         if result is None:
+
             st.error(
                 "No se pudo encontrar ubicación"
             )
+
             st.stop()
 
         lat = result["lat"]
@@ -418,9 +446,14 @@ if section == "Cotización":
 
         ciudad = extract_city(result)
 
-        valor_unitario = get_unit_cost(ciudad)
+        valor_unitario = get_unit_cost(
+            ciudad
+        )
 
-        candidates = engine.query(lon, lat)
+        candidates = engine.query(
+            lon,
+            lat
+        )
 
         best_score = -1
         best_point = None
@@ -457,6 +490,7 @@ if section == "Cotización":
             if score > best_score:
 
                 best_score = score
+
                 best_point = (
                     c.x,
                     c.y
@@ -481,7 +515,7 @@ if section == "Cotización":
 
         st.success(
             f"Valor unitario: "
-            f"${valor_unitario:,.2f} COP"
+            f"${valor_unitario:,.2f} COP/m"
         )
 
     # =====================================================
@@ -504,15 +538,13 @@ if section == "Cotización":
         m = folium.Map(
             location=[lat, lon],
             zoom_start=13,
-            tiles="CartoDB dark_matter"
+            tiles="CartoDB positron"
         )
 
         folium.Marker(
             [lat, lon],
             tooltip="CLIENTE",
-            icon=folium.Icon(
-                color="red"
-            )
+            icon=folium.Icon(color="red")
         ).add_to(m)
 
         if best_point:
@@ -555,7 +587,10 @@ if section == "Cotización":
             key="DRAW_MAP"
         )
 
-        if output and "all_drawings" in output:
+        if (
+            output
+            and "all_drawings" in output
+        ):
 
             drawings = output[
                 "all_drawings"
@@ -570,11 +605,9 @@ if section == "Cotización":
                     == "LineString"
                 ):
 
-                    coords = last[
-                        "geometry"
-                    ]["coordinates"]
-
-                    st.session_state.draw_geojson = coords
+                    st.session_state.draw_geojson = (
+                        last["geometry"]["coordinates"]
+                    )
 
         total = 0
 
@@ -608,9 +641,13 @@ if section == "Cotización":
                 f"{total:,.2f} metros"
             )
 
-        if st.button("Reset ruta"):
-            st.session_state.draw_geojson = None
-
+        # =================================================
+        # RESET REAL
+        # =================================================
+        
+        if st.button("Ir a factibilidad"):
+            st.session_state.go_factibilidad = True
+            st.rerun()
 
 # =========================================================
 # FACTIBILIDAD
@@ -622,7 +659,7 @@ else:
     if not st.session_state.analysis:
 
         st.warning(
-            "Primero debes generar "
+            "Primero genera "
             "una cotización."
         )
 
@@ -661,17 +698,38 @@ else:
             )
 
     # =====================================================
-    # CONVERSIÓN CORRECTA
-    # Valor unitario está en COP por km
-    # distancia viene en metros
+    # COSTO OBRAS
     # =====================================================
+    valor_unitario = data[
+        "valor_unitario"
+    ]
 
-    distancia_km = total_distance / 1000
+    # =====================================================
+    # AQUÍ ESTABA EL ERROR
+    # =====================================================
+    costo_obra = (
+        total_distance
+        * valor_unitario
+    )
 
-    valor_unitario = data["valor_unitario"]
+    costo_obra = int(costo_obra)
 
-    costo_obra = math.ceil(
-        distancia_km * valor_unitario
+    # =====================================================
+    # INFO
+    # =====================================================
+    st.write(
+        f"📍 Ciudad: "
+        f"{data['ciudad'].title()}"
+    )
+
+    st.write(
+        f"📏 Distancia: "
+        f"{total_distance:,.2f} m"
+    )
+
+    st.write(
+        f"💵 Valor unitario: "
+        f"${valor_unitario:,.2f} COP/m"
     )
 
     # =====================================================
@@ -681,6 +739,12 @@ else:
         "MRC",
         value=int(data["mrc"]),
         disabled=True
+    )
+
+    nrc = st.number_input(
+        "NRC",
+        value=0,
+        step=100000
     )
 
     term = st.selectbox(
@@ -695,23 +759,8 @@ else:
         disabled=True
     )
 
-    st.write(
-        f"📍 Ciudad: "
-        f"{data['ciudad'].title()}"
-    )
-
-    st.write(
-        f"📏 Distancia: "
-        f"{distancia_km:,.2f} km"
-    )
-
-    st.write(
-        f"💵 Valor unitario: "
-        f"${valor_unitario:,.2f} COP/km"
-    )
-
     # =====================================================
-    # EVALUAR
+    # FACTIBILIDAD
     # =====================================================
     if st.button(
         "Evaluar factibilidad"
@@ -721,15 +770,17 @@ else:
 
         feasible = evaluate_positive(
             costo_obra,
+            nrc,
             mrc,
             term
         )
 
-        if feasible:
+        payback = (
+            (costo_obra - nrc)
+            / mrc
+        ) if mrc > 0 else 999999
 
-            payback = (
-                costo_obra / mrc
-            )
+        if feasible:
 
             st.success(
                 "🟢 FACTIBILIDAD POSITIVA"
@@ -744,6 +795,11 @@ else:
 
             st.error(
                 "🔴 FACTIBILIDAD NEGATIVA"
+            )
+
+            st.metric(
+                "Payback",
+                f"{payback:.2f} meses"
             )
 
             st.subheader(
