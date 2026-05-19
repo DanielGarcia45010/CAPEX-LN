@@ -40,7 +40,7 @@ if "draw_geojson" not in st.session_state:
 
 
 # =========================================================
-# NORMALIZACIÓN
+# NORMALIZE
 # =========================================================
 def normalize(text):
 
@@ -56,7 +56,7 @@ def normalize(text):
 
 
 # =========================================================
-# EXTRAER CIUDAD
+# CITY EXTRACTION
 # =========================================================
 def extract_city(result):
 
@@ -84,15 +84,12 @@ def extract_city(result):
 
 
 # =========================================================
-# COSTOS
+# COSTS
 # =========================================================
 @st.cache_data
 def load_costs():
 
-    df = pd.read_excel(
-        "costs.xlsx",
-        engine="openpyxl"
-    )
+    df = pd.read_excel("costs.xlsx", engine="openpyxl")
 
     df.columns = df.columns.str.strip()
 
@@ -102,15 +99,12 @@ def load_costs():
     if "Valor Unitario" not in df.columns:
         raise ValueError("Falta columna Valor Unitario")
 
-    # normalizar ciudad
-    df["Ciudad"] = (
-        df["Ciudad"]
-        .astype(str)
-        .apply(normalize)
-    )
+    df["Ciudad"] = df["Ciudad"].astype(str).apply(normalize)
 
-    # convertir correctamente:
+    # =====================================================
+    # CONVERSIÓN CORRECTA
     # 10.500,6125 -> 10500.6125
+    # =====================================================
     df["Valor Unitario"] = (
         df["Valor Unitario"]
         .astype(str)
@@ -133,11 +127,8 @@ def get_unit_cost(ciudad):
 
     ciudad = normalize(ciudad)
 
-    row = costs_df[
-        costs_df["Ciudad"] == ciudad
-    ]
+    row = costs_df[costs_df["Ciudad"] == ciudad]
 
-    # fallback parcial
     if row.empty:
 
         row = costs_df[
@@ -147,18 +138,14 @@ def get_unit_cost(ciudad):
             )
         ]
 
-    # fallback Bogotá
     if row.empty:
-
-        row = costs_df[
-            costs_df["Ciudad"] == "bogota"
-        ]
+        row = costs_df[costs_df["Ciudad"] == "bogota"]
 
     return float(row.iloc[0]["Valor Unitario"])
 
 
 # =========================================================
-# DISTANCIA
+# DISTANCE
 # =========================================================
 def haversine(lon1, lat1, lon2, lat2):
 
@@ -184,7 +171,7 @@ def haversine(lon1, lat1, lon2, lat2):
 
 
 # =========================================================
-# FACTIBILIDAD POSITIVA
+# FEASIBILITY RULE
 # =========================================================
 def evaluate_positive(costo, mrc, term):
 
@@ -197,7 +184,7 @@ def evaluate_positive(costo, mrc, term):
 
 
 # =========================================================
-# GENERAR 3 OPORTUNIDADES
+# NEGATIVE OPTIONS
 # =========================================================
 def generate_negative_options(
     costo,
@@ -217,7 +204,7 @@ def generate_negative_options(
     )
 
     if mrc1 <= mrc_entrada:
-        mrc1 = mrc_entrada + 1
+        mrc1 = int(mrc_entrada) + 1
 
     nrc1 = 0
 
@@ -239,19 +226,45 @@ def generate_negative_options(
     term2 = 36
 
     mrc2 = max(
-        math.ceil(costo / 18),
-        int(mrc_entrada * 1.25)
+        int(mrc_entrada * 1.2),
+        int(mrc1 * 0.75)
     )
 
-    while mrc2 in [mrc_entrada, mrc1]:
+    if mrc2 == mrc1:
         mrc2 += 1
 
     nrc2 = math.ceil(
         max(
             0,
-            costo - (mrc2 * (term2 / 2))
+            costo - (
+                mrc2 * (term2 / 2)
+            )
         )
     )
+
+    max_nrc = costo * 0.4
+
+    if nrc2 > max_nrc:
+
+        mrc2 = math.ceil(
+            (costo - max_nrc)
+            / (term2 / 2)
+        )
+
+        while mrc2 in [
+            mrc_entrada,
+            mrc1
+        ]:
+            mrc2 += 1
+
+        nrc2 = math.ceil(
+            max(
+                0,
+                costo - (
+                    mrc2 * (term2 / 2)
+                )
+            )
+        )
 
     payback2 = (
         costo - nrc2
@@ -271,8 +284,8 @@ def generate_negative_options(
     term3 = 24
 
     mrc3 = max(
-        math.ceil(costo / 12),
-        int(mrc_entrada * 1.5)
+        int(mrc_entrada * 1.4),
+        int(mrc2 * 0.9)
     )
 
     while mrc3 in [
@@ -285,9 +298,34 @@ def generate_negative_options(
     nrc3 = math.ceil(
         max(
             0,
-            costo - (mrc3 * (term3 / 2))
+            costo - (
+                mrc3 * (term3 / 2)
+            )
         )
     )
+
+    if nrc3 > max_nrc:
+
+        mrc3 = math.ceil(
+            (costo - max_nrc)
+            / (term3 / 2)
+        )
+
+        while mrc3 in [
+            mrc_entrada,
+            mrc1,
+            mrc2
+        ]:
+            mrc3 += 1
+
+        nrc3 = math.ceil(
+            max(
+                0,
+                costo - (
+                    mrc3 * (term3 / 2)
+                )
+            )
+        )
 
     payback3 = (
         costo - nrc3
@@ -331,7 +369,6 @@ geometries = load_data()
 def build_engine():
 
     engine = H3GeoEngine(resolution=9)
-
     engine.build(geometries)
 
     return engine
@@ -362,7 +399,6 @@ if section == "Cotización":
 
     mrc_cliente = st.number_input(
         "💰 MRC",
-        min_value=0,
         value=0,
         step=100000
     )
@@ -372,11 +408,9 @@ if section == "Cotización":
         result = resolve_input(location_input)
 
         if result is None:
-
             st.error(
                 "No se pudo encontrar ubicación"
             )
-
             st.stop()
 
         lat = result["lat"]
@@ -386,10 +420,7 @@ if section == "Cotización":
 
         valor_unitario = get_unit_cost(ciudad)
 
-        candidates = engine.query(
-            lon,
-            lat
-        )
+        candidates = engine.query(lon, lat)
 
         best_score = -1
         best_point = None
@@ -402,7 +433,6 @@ if section == "Cotización":
         for h, idx in candidates:
 
             g = geometries[idx]
-
             c = g.centroid
 
             d = haversine(
@@ -427,7 +457,6 @@ if section == "Cotización":
             if score > best_score:
 
                 best_score = score
-
                 best_point = (
                     c.x,
                     c.y
@@ -440,18 +469,19 @@ if section == "Cotización":
             "score": best_score,
             "mrc": int(mrc_cliente),
             "ciudad": ciudad,
-            "valor_unitario": float(valor_unitario)
+            "valor_unitario": valor_unitario
         }
 
         st.session_state.draw_geojson = None
 
         st.success(
-            f"Ciudad detectada: {ciudad.title()}"
+            f"Ciudad detectada: "
+            f"{ciudad.title()}"
         )
 
         st.success(
             f"Valor unitario: "
-            f"{valor_unitario:,.4f}"
+            f"${valor_unitario:,.2f} COP"
         )
 
     # =====================================================
@@ -477,23 +507,27 @@ if section == "Cotización":
             tiles="CartoDB dark_matter"
         )
 
-        # cliente
         folium.Marker(
             [lat, lon],
             tooltip="CLIENTE",
-            icon=folium.Icon(color="red")
+            icon=folium.Icon(
+                color="red"
+            )
         ).add_to(m)
 
-        # óptimo
         if best_point:
 
             folium.Marker(
-                [best_point[1], best_point[0]],
+                [
+                    best_point[1],
+                    best_point[0]
+                ],
                 tooltip="ÓPTIMO",
-                icon=folium.Icon(color="green")
+                icon=folium.Icon(
+                    color="green"
+                )
             ).add_to(m)
 
-        # draw tool
         draw = Draw(
             export=True,
             filename="route.geojson",
@@ -521,10 +555,11 @@ if section == "Cotización":
             key="DRAW_MAP"
         )
 
-        # guardar línea
         if output and "all_drawings" in output:
 
-            drawings = output["all_drawings"]
+            drawings = output[
+                "all_drawings"
+            ]
 
             if drawings:
 
@@ -535,14 +570,12 @@ if section == "Cotización":
                     == "LineString"
                 ):
 
-                    coords = (
-                        last["geometry"]
-                        ["coordinates"]
-                    )
+                    coords = last[
+                        "geometry"
+                    ]["coordinates"]
 
                     st.session_state.draw_geojson = coords
 
-        # calcular distancia
         total = 0
 
         if (
@@ -556,7 +589,9 @@ if section == "Cotización":
                 st.session_state.draw_geojson
             )
 
-            for i in range(len(pts) - 1):
+            for i in range(
+                len(pts) - 1
+            ):
 
                 lon1, lat1 = pts[i]
                 lon2, lat2 = pts[i + 1]
@@ -574,7 +609,6 @@ if section == "Cotización":
             )
 
         if st.button("Reset ruta"):
-
             st.session_state.draw_geojson = None
 
 
@@ -608,9 +642,13 @@ else:
         ) > 1
     ):
 
-        pts = st.session_state.draw_geojson
+        pts = (
+            st.session_state.draw_geojson
+        )
 
-        for i in range(len(pts) - 1):
+        for i in range(
+            len(pts) - 1
+        ):
 
             lon1, lat1 = pts[i]
             lon2, lat2 = pts[i + 1]
@@ -623,19 +661,18 @@ else:
             )
 
     # =====================================================
-    # COSTO OBRAS
+    # CONVERSIÓN CORRECTA
+    # Valor unitario está en COP por km
+    # distancia viene en metros
     # =====================================================
-    valor_unitario = float(
-        data["valor_unitario"]
-    )
 
-    costo_obra = float(
-        total_distance * valor_unitario
-    )
+    distancia_km = total_distance / 1000
 
-    # protección overflow JS
-    if costo_obra > 9e15:
-        costo_obra = 9e15
+    valor_unitario = data["valor_unitario"]
+
+    costo_obra = math.ceil(
+        distancia_km * valor_unitario
+    )
 
     # =====================================================
     # CAMPOS
@@ -654,7 +691,7 @@ else:
 
     st.number_input(
         "Costo de Obras",
-        value=float(round(costo_obra, 2)),
+        value=float(costo_obra),
         disabled=True
     )
 
@@ -664,19 +701,21 @@ else:
     )
 
     st.write(
-        f"💰 Valor Unitario: "
-        f"{valor_unitario:,.4f}"
+        f"📏 Distancia: "
+        f"{distancia_km:,.2f} km"
     )
 
     st.write(
-        f"📏 Distancia: "
-        f"{total_distance:,.2f} metros"
+        f"💵 Valor unitario: "
+        f"${valor_unitario:,.2f} COP/km"
     )
 
     # =====================================================
     # EVALUAR
     # =====================================================
-    if st.button("Evaluar factibilidad"):
+    if st.button(
+        "Evaluar factibilidad"
+    ):
 
         mrc = int(data["mrc"])
 
