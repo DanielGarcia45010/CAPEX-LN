@@ -74,28 +74,44 @@ def normalize(text):
 # =========================================================
 def extract_city(result):
 
-    possible = [
-        result.get("city"),
-        result.get("town"),
-        result.get("village"),
-        result.get("municipality"),
-        result.get("county"),
-        result.get("state_district"),
-        result.get("region"),
-    ]
+    # =====================================================
+    # ADDRESS STRING
+    # =====================================================
+    address = normalize(
+        result.get("address", "")
+    )
 
-    for value in possible:
+    print("ADDRESS:", address)
 
-        if value and str(value).strip():
-            return normalize(value)
+    # =====================================================
+    # TODAS LAS CIUDADES
+    # =====================================================
+    cities = (
+        costs_df["Ciudad"]
+        .dropna()
+        .astype(str)
+        .apply(normalize)
+        .unique()
+        .tolist()
+    )
 
-    address = result.get("address", "")
+    print("CITIES:", cities)
 
-    if address:
-        return normalize(address.split(",")[0])
+    # =====================================================
+    # MATCH DIRECTO
+    # =====================================================
+    for city in cities:
 
+        if city in address:
+
+            print("MATCH:", city)
+
+            return city
+
+    # =====================================================
+    # FALLBACK
+    # =====================================================
     return "bogota"
-
 
 # =========================================================
 # COSTOS AUTOMÁTICOS DESDE EXCEL
@@ -496,6 +512,26 @@ if section == "Cotización":
                     c.y
                 )
 
+                    # ================================================
+        # VALIDAR SI EXISTE PUNTO CERCANO
+        # ================================================
+
+        if best_point is not None:
+
+            best_distance = haversine(
+                lon,
+                lat,
+                best_point[0],
+                best_point[1]
+            )
+
+            # distancia máxima permitida
+            MAX_DISTANCE = 5000  # metros
+
+            if best_distance > MAX_DISTANCE:
+
+                best_point = None
+
         st.session_state.analysis = {
             "lat": lat,
             "lon": lon,
@@ -503,7 +539,9 @@ if section == "Cotización":
             "score": best_score,
             "mrc": int(mrc_cliente),
             "ciudad": ciudad,
-            "valor_unitario": valor_unitario
+            "valor_unitario": valor_unitario,
+            "negative_site": best_point is None
+
         }
 
         st.session_state.draw_geojson = None
@@ -535,6 +573,18 @@ if section == "Cotización":
             f"{data['score']:.4f}"
         )
 
+        # ================================================
+        # SITIO NEGATIVO
+        # ================================================
+
+        if data.get("negative_site", False):
+
+            st.error(
+                "🔴 SITIO NEGATIVO\n\n"
+                "No se encontró infraestructura "
+                "cercana al cliente."
+            )
+
         m = folium.Map(
             location=[lat, lon],
             zoom_start=13,
@@ -547,7 +597,7 @@ if section == "Cotización":
             icon=folium.Icon(color="red")
         ).add_to(m)
 
-        if best_point:
+        if best_point and not data.get("negative_site", False):
 
             folium.Marker(
                 [
