@@ -1,0 +1,123 @@
+{
+    "ultimo_serial": 4,
+    "factibilidades": [
+        {
+            "tipo": "POSITIVA",
+            "resultado": "POSITIVA",
+            "operador": "ETB",
+            "nombre_servicio": "SECRETARIA DISTRITAL DE MOVILIDAD MALL PLAZA",
+            "ciudad": "bogota",
+            "lat": 4.6294001,
+            "lon": -74.09775,
+            "mrc": 750000,
+            "nrc": 0,
+            "term": 12,
+            "payback": 1.19,
+            "costo_obra": 893842,
+            "distancia": 85.12,
+            "valor_unitario": 10500.61254501898,
+            "id": "CO000001",
+            "fecha": "2026-08-04 21:34:24",
+            "fingerprint": "080a28c0358e174e29a51e851811b6797d565bf2f13db9ddf1984d748a90d630",
+            "estado": "POSITIVA",
+            "datos_cliente": {
+                "operador": "ETB",
+                "nombre_servicio": "SECRETARIA DISTRITAL DE MOVILIDAD MALL PLAZA",
+                "ciudad": "bogota",
+                "lat": 4.6294001,
+                "lon": -74.09775
+            },
+            "presupuestos": {
+                "mrc": 750000,
+                "nrc": 0,
+                "term": 12,
+                "costo_obra": 893842,
+                "distancia": 85.12,
+                "payback": 1.19
+            },
+            "oportunidades": []
+        },
+        {
+            "tipo": "POSITIVA",
+            "resultado": "POSITIVA",
+            "operador": "",
+            "nombre_servicio": "",
+            "ciudad": "bogota",
+            "lat": 4.6294001,
+            "lon": -74.09775,
+            "mrc": 750000,
+            "nrc": 0,
+            "term": 24,
+            "payback": 1.19,
+            "costo_obra": 893842,
+            "distancia": 85.12,
+            "valor_unitario": 10500.61254501898,
+            "id": "CO000002",
+            "fecha": "2026-08-04 21:35:25",
+            "fingerprint": "ffc7792b5314e8db334e7ee507b385d33b671e5582c65cb199f419739ae7db6c",
+            "estado": "POSITIVA",
+            "datos_cliente": {
+                "operador": "",
+                "nombre_servicio": "",
+                "ciudad": "bogota",
+                "lat": 4.6294001,
+                "lon": -74.09775
+            },
+            "presupuestos": {
+                "mrc": 750000,
+                "nrc": 0,
+                "term": 24,
+                "costo_obra": 893842,
+                "distancia": 85.12,
+                "payback": 1.19
+            },
+            "oportunidades": []
+        },
+        {
+            "tipo": "POSITIVA",
+            "datos_cliente": {
+                "operador": "PARTNERS TELECOM COLOMBIA",
+                "nombre_servicio": "BTA Lisboa",
+                "ciudad": "bogota",
+                "lat": 4.6294001,
+                "lon": -74.09775
+            },
+            "presupuestos": {
+                "mrc": 425000,
+                "nrc": 0,
+                "term": 36,
+                "costo_obra": 1567196,
+                "distancia": 149.24807167477968,
+                "payback": 3.68752
+            },
+            "oportunidades": [],
+            "id": "CO000003",
+            "fingerprint": "f9ab554a11ac0b5c77b9fa9c3ee81ba71ae0fe340fac75fe50371cf8499c1224",
+            "fecha": "2026-08-04 21:44:45",
+            "estado": "POSITIVA"
+        },
+        {
+            "tipo": "POSITIVA",
+            "estado": "POSITIVA",
+            "datos_cliente": {
+                "operador": "IFX",
+                "nombre_servicio": "Nueva Sede OPAIN",
+                "ciudad": "bogota",
+                "lat": 4.6294001,
+                "lon": -74.09775
+            },
+            "presupuestos": {
+                "mrc": 650000,
+                "nrc": 0,
+                "term": 36,
+                "costo_obra": 1359482,
+                "distancia": 129.46698047540568,
+                "payback": 2.0915107692307693
+            },
+            "oportunidades": [],
+            "id": "CO000004",
+            "fecha": "2026-08-04 21:49:25",
+            "fingerprint": "8cebfc124dcc0e4a86f9e609a09e9ee6b1d89347cc102316fc5c738476a916b9"
+        }
+    ]
+}
