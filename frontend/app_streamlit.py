@@ -781,7 +781,14 @@ else:
         f"💵 Valor unitario: "
         f"${valor_unitario:,.2f} COP/m"
     )
-
+    st.markdown("""
+       <style>
+        [data-testid="stWidgetLabel"] p {
+        color: #000000 !important;
+        font-weight: 600 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
     # =====================================================
     # CAMPOS
     # =====================================================
