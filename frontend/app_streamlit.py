@@ -13,6 +13,7 @@ import unicodedata
 import re
 import html
 import hashlib
+import textwrap
 
 from datetime import datetime
 from shapely.geometry import shape
@@ -26,12 +27,13 @@ from utils.geocoder import resolve_input
 
 
 # =========================================================
-# CONFIG
+# CONFIGURACIÓN
 # =========================================================
 
 st.set_page_config(
     page_title="CAPEX ENGINE",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 
@@ -74,6 +76,146 @@ load_css()
 
 
 # =========================================================
+# CSS DE SEGURIDAD PARA LA INTERFAZ
+# =========================================================
+
+st.markdown(
+    """
+<style>
+
+    .stApp {
+        background-color: #FFFFFF;
+    }
+
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+        max-width: 1400px;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        color: #1F2937 !important;
+    }
+
+    div[data-testid="stTextInput"] label,
+    div[data-testid="stNumberInput"] label,
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stRadio"] label {
+        color: #1F2937 !important;
+        font-weight: 600 !important;
+    }
+
+    div[data-testid="stTextInput"] label p,
+    div[data-testid="stNumberInput"] label p,
+    div[data-testid="stSelectbox"] label p,
+    div[data-testid="stRadio"] label p {
+        color: #1F2937 !important;
+    }
+
+    div[data-baseweb="input"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid #D1D5DB !important;
+        border-radius: 8px !important;
+    }
+
+    div[data-baseweb="input"] input {
+        background-color: #FFFFFF !important;
+        color: #111827 !important;
+        -webkit-text-fill-color: #111827 !important;
+    }
+
+    div[data-baseweb="input"] input::placeholder {
+        color: #6B7280 !important;
+        opacity: 1 !important;
+    }
+
+    div[data-baseweb="select"] > div {
+        background-color: #FFFFFF !important;
+        color: #111827 !important;
+        border: 1px solid #D1D5DB !important;
+    }
+
+    div[data-baseweb="select"] span {
+        color: #111827 !important;
+    }
+
+    .stButton > button {
+        color: #FFFFFF !important;
+        background-color: #FF7A00 !important;
+        border: 1px solid #FF7A00 !important;
+        border-radius: 8px !important;
+        font-weight: 700 !important;
+        min-height: 42px !important;
+    }
+
+    .stButton > button:hover {
+        background-color: #E96D00 !important;
+        border-color: #E96D00 !important;
+    }
+
+    div[data-testid="stMetric"] {
+        background-color: #F8FAFC !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 10px !important;
+        padding: 12px !important;
+    }
+
+    div[data-testid="stMetricLabel"] {
+        color: #374151 !important;
+    }
+
+    div[data-testid="stMetricValue"] {
+        color: #111827 !important;
+    }
+
+    div[data-testid="stDataFrame"] {
+        color: #111827 !important;
+    }
+
+    section[data-testid="stSidebar"] {
+        background-color: #F8FAFC !important;
+    }
+
+    section[data-testid="stSidebar"] * {
+        color: #1F2937;
+    }
+
+    div[data-testid="stAlert"] p {
+        color: inherit !important;
+    }
+
+</style>
+""",
+    unsafe_allow_html=True
+)
+
+
+# =========================================================
+# FUNCIÓN CENTRAL PARA HTML
+#
+# IMPORTANTE:
+# Se utiliza st.html() directamente para evitar que
+# Streamlit interprete el HTML como texto/código.
+# =========================================================
+
+def render_html(content):
+
+    if content is None:
+        return
+
+    clean_content = textwrap.dedent(
+        str(content)
+    ).strip()
+
+    if not clean_content:
+        return
+
+    st.html(
+        clean_content
+    )
+
+
+# =========================================================
 # LOGO
 # =========================================================
 
@@ -90,20 +232,39 @@ if logo_path.exists():
     )
 
 
-st.markdown(
-    """
-    <h1 style="margin-bottom:0;">
-        CAPEX ENGINE
-    </h1>
+# =========================================================
+# CABECERA
+# =========================================================
 
-    <p style="
-        color:#6B7280;
-        margin-top:0;
+render_html(
+    """
+    <div style="
+        width:100%;
+        margin:0 0 25px 0;
+        padding:0;
+        font-family:Arial,sans-serif;
     ">
-        Liberty Networks · Plataforma de evaluación CAPEX
-    </p>
-    """,
-    unsafe_allow_html=True
+
+        <h1 style="
+            margin:0;
+            color:#1F2937;
+            font-size:38px;
+            font-weight:800;
+            line-height:1.2;
+        ">
+            CAPEX ENGINE
+        </h1>
+
+        <p style="
+            color:#6B7280;
+            margin:5px 0 0 0;
+            font-size:16px;
+        ">
+            Liberty Networks · Plataforma de evaluación CAPEX
+        </p>
+
+    </div>
+    """
 )
 
 
@@ -112,11 +273,17 @@ st.markdown(
 # =========================================================
 
 DEFAULT_STATE = {
+
     "analysis": None,
+
     "draw_geojson": None,
+
     "section": "Cotización",
+
     "factibilidad_resultado": None,
+
     "factibilidad_id": None,
+
     "historial_seleccionado": None,
 }
 
@@ -124,6 +291,7 @@ DEFAULT_STATE = {
 for key, value in DEFAULT_STATE.items():
 
     if key not in st.session_state:
+
         st.session_state[key] = value
 
 
@@ -140,12 +308,16 @@ def initialize_history_file():
             "factibilidades": []
         }
 
-        save_history(initial_data)
+        save_history(
+            initial_data
+        )
 
 
 def save_history(data):
 
-    temp_file = HISTORY_FILE.with_suffix(".tmp")
+    temp_file = HISTORY_FILE.with_suffix(
+        ".tmp"
+    )
 
     with open(
         temp_file,
@@ -160,7 +332,9 @@ def save_history(data):
             indent=4
         )
 
-    temp_file.replace(HISTORY_FILE)
+    temp_file.replace(
+        HISTORY_FILE
+    )
 
 
 def load_history():
@@ -188,10 +362,6 @@ def load_history():
 
         return data
 
-    # -----------------------------------------------------
-    # COMPATIBILIDAD CON JSON ANTIGUO
-    # -----------------------------------------------------
-
     if isinstance(data, list):
 
         max_serial = 0
@@ -199,7 +369,10 @@ def load_history():
         for item in data:
 
             fact_id = str(
-                item.get("id", "")
+                item.get(
+                    "id",
+                    ""
+                )
             )
 
             match = re.search(
@@ -229,21 +402,22 @@ def load_history():
         }
 
     if "ultimo_serial" not in data:
+
         data["ultimo_serial"] = 0
 
     if "factibilidades" not in data:
-        data["factibilidades"] = []
 
-    # -----------------------------------------------------
-    # ASEGURAR QUE EL SERIAL NUNCA RETROCEDA
-    # -----------------------------------------------------
+        data["factibilidades"] = []
 
     max_serial = 0
 
     for item in data["factibilidades"]:
 
         fact_id = str(
-            item.get("id", "")
+            item.get(
+                "id",
+                ""
+            )
         )
 
         match = re.search(
@@ -258,7 +432,9 @@ def load_history():
                 int(match.group(1))
             )
 
-    if max_serial > int(data["ultimo_serial"]):
+    if max_serial > int(
+        data["ultimo_serial"]
+    ):
 
         data["ultimo_serial"] = max_serial
 
@@ -279,7 +455,9 @@ def get_next_factibilidad_id():
     history = load_history()
 
     next_serial = (
-        int(history["ultimo_serial"])
+        int(
+            history["ultimo_serial"]
+        )
         + 1
     )
 
@@ -399,15 +577,15 @@ def register_factibilidad(record):
 
     history = load_history()
 
-    fingerprint = build_factibilidad_fingerprint(
-        record
+    fingerprint = (
+        build_factibilidad_fingerprint(
+            record
+        )
     )
 
-    # -----------------------------------------------------
-    # EVITAR DUPLICADOS
-    # -----------------------------------------------------
-
-    for existing in history["factibilidades"]:
+    for existing in history[
+        "factibilidades"
+    ]:
 
         if existing.get(
             "fingerprint"
@@ -417,10 +595,6 @@ def register_factibilidad(record):
                 existing.get("id"),
                 False
             )
-
-    # -----------------------------------------------------
-    # NUEVO SERIAL
-    # -----------------------------------------------------
 
     next_serial = (
         int(
@@ -448,15 +622,9 @@ def register_factibilidad(record):
         )
     )
 
-    # -----------------------------------------------------
-    # ESTADO
-    # -----------------------------------------------------
-    #
-    # Se guarda explícitamente para evitar el error:
-    # KeyError: 'estado'
-    #
-
-    if record.get("tipo") == "POSITIVA":
+    if record.get(
+        "tipo"
+    ) == "POSITIVA":
 
         record["estado"] = "POSITIVA"
 
@@ -464,13 +632,19 @@ def register_factibilidad(record):
 
         record["estado"] = "NEGATIVA"
 
-    history["ultimo_serial"] = next_serial
+    history["ultimo_serial"] = (
+        next_serial
+    )
 
-    history["factibilidades"].append(
+    history[
+        "factibilidades"
+    ].append(
         record
     )
 
-    save_history(history)
+    save_history(
+        history
+    )
 
     return (
         fact_id,
@@ -530,6 +704,13 @@ def load_costs():
             / "costs.xlsx"
         )
 
+    if not costs_path.exists():
+
+        raise FileNotFoundError(
+            "No se encontró costs.xlsx "
+            "en data/ ni en la raíz del proyecto."
+        )
+
     df = pd.read_excel(
         costs_path,
         engine="openpyxl"
@@ -544,13 +725,14 @@ def load_costs():
     if "Ciudad" not in df.columns:
 
         raise ValueError(
-            "Falta columna Ciudad en costs.xlsx"
+            "Falta columna 'Ciudad' en costs.xlsx"
         )
 
     if "Valor Unitario" not in df.columns:
 
         raise ValueError(
-            "Falta columna Valor Unitario en costs.xlsx"
+            "Falta columna 'Valor Unitario' "
+            "en costs.xlsx"
         )
 
     df["Ciudad"] = (
@@ -758,9 +940,7 @@ def evaluate_positive(
     ) / mrc
 
     return (
-        payback
-        <=
-        term / 2
+        payback <= term / 2
     )
 
 
@@ -775,10 +955,6 @@ def generate_negative_options(
 ):
 
     opportunities = []
-
-    # -----------------------------------------------------
-    # OPCIÓN 1
-    # -----------------------------------------------------
 
     mrc1 = math.ceil(
         (2 * costo)
@@ -816,10 +992,6 @@ def generate_negative_options(
                 2
             )
     })
-
-    # -----------------------------------------------------
-    # OPCIÓN 2
-    # -----------------------------------------------------
 
     term2 = 36
 
@@ -872,10 +1044,6 @@ def generate_negative_options(
                 2
             )
     })
-
-    # -----------------------------------------------------
-    # OPCIÓN 3
-    # -----------------------------------------------------
 
     term3 = 24
 
@@ -952,10 +1120,6 @@ def safe_html(value):
 
 # =========================================================
 # TABLA DE FACTIBILIDAD
-#
-# ESTA FUNCIÓN ES LA IMPORTANTE.
-#
-# Se conserva el diseño original de la tabla.
 # =========================================================
 
 def render_feasibility_response(
@@ -1038,478 +1202,316 @@ def render_feasibility_response(
         term
     )
 
-    # =====================================================
-    # ENCABEZADO + TABLA
-    # =====================================================
-
-    html_block = f"""
-
-    <div style="
-        width:100%;
-        margin-top:15px;
-        margin-bottom:25px;
-        padding:0;
-        font-family:Arial,sans-serif;
-        box-sizing:border-box;
-    ">
-
-        <!-- =============================================
-             ENCABEZADO
-             ============================================= -->
-
+    render_html(
+        f"""
         <div style="
             width:100%;
-            display:flex;
-            flex-direction:row;
-            align-items:stretch;
-            margin:0;
+            margin:20px 0 30px 0;
             padding:0;
+            font-family:Arial,sans-serif;
             box-sizing:border-box;
         ">
 
-            <!-- TITULO -->
-
             <div style="
-                flex:1;
-                background:{color};
-                color:#FFFFFF;
-                text-align:center;
-                font-family:Arial,sans-serif;
-                font-size:23px;
-                font-weight:700;
-                padding:7px 10px;
-                border:1px solid #000000;
+                width:100%;
                 display:flex;
-                align-items:center;
-                justify-content:center;
+                align-items:stretch;
+                margin:0;
+                padding:0;
                 box-sizing:border-box;
-                min-height:48px;
             ">
-                {titulo}
+
+                <div style="
+                    flex:1;
+                    background:{color};
+                    color:#FFFFFF;
+                    text-align:center;
+                    font-size:22px;
+                    font-weight:700;
+                    padding:10px;
+                    border:1px solid #000000;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    box-sizing:border-box;
+                    min-height:50px;
+                ">
+                    {titulo}
+                </div>
+
+                <div style="
+                    min-width:150px;
+                    background:#000000;
+                    color:#FFFFFF;
+                    text-align:center;
+                    font-size:20px;
+                    font-weight:700;
+                    padding:10px 12px;
+                    border-top:1px solid #000000;
+                    border-right:1px solid #000000;
+                    border-bottom:1px solid #000000;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    white-space:nowrap;
+                    box-sizing:border-box;
+                    min-height:50px;
+                ">
+                    {fact_id}
+                </div>
+
             </div>
 
-
-            <!-- ID -->
-
-            <div style="
-                min-width:145px;
-                background:#000000;
-                color:#FFFFFF;
-                text-align:center;
-                font-family:Arial,sans-serif;
-                font-size:21px;
-                font-weight:700;
-                padding:7px 12px;
-                border-top:1px solid #000000;
+            <table style="
+                width:100%;
+                border-collapse:collapse;
+                border-spacing:0;
+                table-layout:fixed;
+                margin:0;
+                padding:0;
+                border-left:1px solid #000000;
                 border-right:1px solid #000000;
                 border-bottom:1px solid #000000;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                white-space:nowrap;
-                box-sizing:border-box;
-                min-height:48px;
+                background:#FFFFFF;
+                font-family:Arial,sans-serif;
             ">
-                {fact_id}
-            </div>
+
+                <tbody>
+
+                    <tr>
+
+                        <td colspan="2"
+                            style="
+                                width:100%;
+                                background:#F2F2F2;
+                                color:{color};
+                                text-align:center;
+                                font-size:20px;
+                                font-weight:700;
+                                padding:8px;
+                                border:1px solid #000000;
+                            ">
+                            Datos del Cliente
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td style="
+                            width:33%;
+                            background:#FFF1E0;
+                            color:#000000;
+                            text-align:center;
+                            vertical-align:middle;
+                            font-size:17px;
+                            font-weight:700;
+                            padding:9px;
+                            border:1px solid #000000;
+                        ">
+                            Operador:
+                        </td>
+
+                        <td style="
+                            width:67%;
+                            background:#FFFFFF;
+                            color:#000000;
+                            text-align:left;
+                            vertical-align:middle;
+                            font-size:17px;
+                            padding:9px 12px;
+                            border:1px solid #000000;
+                        ">
+                            {operador}
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td style="
+                            width:33%;
+                            background:#FFF1E0;
+                            color:#000000;
+                            text-align:center;
+                            vertical-align:middle;
+                            font-size:17px;
+                            font-weight:700;
+                            padding:9px;
+                            border:1px solid #000000;
+                        ">
+                            Nombre del servicio:
+                        </td>
+
+                        <td style="
+                            width:67%;
+                            background:#FFFFFF;
+                            color:#000000;
+                            text-align:left;
+                            vertical-align:middle;
+                            font-size:17px;
+                            padding:9px 12px;
+                            border:1px solid #000000;
+                        ">
+                            {nombre_servicio}
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td style="
+                            width:33%;
+                            background:#FFF1E0;
+                            color:#000000;
+                            text-align:center;
+                            vertical-align:middle;
+                            font-size:17px;
+                            font-weight:700;
+                            padding:9px;
+                            border:1px solid #000000;
+                        ">
+                            Dirección/Ciudad:
+                        </td>
+
+                        <td style="
+                            width:67%;
+                            background:#FFFFFF;
+                            color:#000000;
+                            text-align:left;
+                            vertical-align:middle;
+                            font-size:17px;
+                            padding:9px 12px;
+                            border:1px solid #000000;
+                        ">
+                            {ciudad}
+                            ({lat_text}, {lon_text})
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td colspan="2"
+                            style="
+                                width:100%;
+                                background:#F2F2F2;
+                                color:{color};
+                                text-align:center;
+                                font-size:20px;
+                                font-weight:700;
+                                padding:8px;
+                                border:1px solid #000000;
+                            ">
+                            Presupuestos y Condiciones
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td style="
+                            width:33%;
+                            background:#FFF1E0;
+                            color:#000000;
+                            text-align:center;
+                            vertical-align:middle;
+                            font-size:17px;
+                            font-weight:700;
+                            padding:9px;
+                            border:1px solid #000000;
+                        ">
+                            MRC (Recurrente mensual)
+                        </td>
+
+                        <td style="
+                            width:67%;
+                            background:#FFFFFF;
+                            color:#000000;
+                            text-align:left;
+                            vertical-align:middle;
+                            font-size:17px;
+                            padding:9px 12px;
+                            border:1px solid #000000;
+                        ">
+                            {mrc_text}
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td style="
+                            width:33%;
+                            background:#FFF1E0;
+                            color:#000000;
+                            text-align:center;
+                            vertical-align:middle;
+                            font-size:17px;
+                            font-weight:700;
+                            padding:9px;
+                            border:1px solid #000000;
+                        ">
+                            NRC (No recurrente)
+                        </td>
+
+                        <td style="
+                            width:67%;
+                            background:#FFFFFF;
+                            color:#000000;
+                            text-align:left;
+                            vertical-align:middle;
+                            font-size:17px;
+                            padding:9px 12px;
+                            border:1px solid #000000;
+                        ">
+                            {nrc_text}
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td style="
+                            width:33%;
+                            background:#FFF1E0;
+                            color:#000000;
+                            text-align:center;
+                            vertical-align:middle;
+                            font-size:17px;
+                            font-weight:700;
+                            padding:9px;
+                            border:1px solid #000000;
+                        ">
+                            Tiempo Contratación (Meses)
+                        </td>
+
+                        <td style="
+                            width:67%;
+                            background:#FFFFFF;
+                            color:#000000;
+                            text-align:left;
+                            vertical-align:middle;
+                            font-size:17px;
+                            padding:9px 12px;
+                            border:1px solid #000000;
+                        ">
+                            {term_text}
+                        </td>
+
+                    </tr>
+
+                </tbody>
+
+            </table>
 
         </div>
-
-
-        <!-- =============================================
-             TABLA COMPLETA
-             ============================================= -->
-
-        <table style="
-            width:100% !important;
-            border-collapse:collapse !important;
-            border-spacing:0 !important;
-            table-layout:fixed !important;
-            margin:0 !important;
-            padding:0 !important;
-            border-left:1px solid #000000 !important;
-            border-right:1px solid #000000 !important;
-            border-bottom:1px solid #000000 !important;
-            background:#FFFFFF !important;
-            font-family:Arial,sans-serif !important;
-            display:table !important;
-        ">
-
-            <tbody style="
-                display:table-row-group !important;
-            ">
-
-
-                <!-- =====================================
-                     DATOS CLIENTE
-                     ===================================== -->
-
-                <tr style="
-                    display:table-row !important;
-                ">
-
-                    <td colspan="2"
-                        style="
-                            display:table-cell !important;
-                            width:100% !important;
-                            background:#F2F2F2 !important;
-                            color:{color} !important;
-                            text-align:center !important;
-                            font-family:Arial,sans-serif !important;
-                            font-size:21px !important;
-                            font-weight:700 !important;
-                            padding:5px !important;
-                            border:1px solid #000000 !important;
-                            box-sizing:border-box !important;
-                        ">
-
-                        Datos del Cliente
-
-                    </td>
-
-                </tr>
-
-
-                <!-- =====================================
-                     OPERADOR
-                     ===================================== -->
-
-                <tr style="
-                    display:table-row !important;
-                ">
-
-                    <td style="
-                        display:table-cell !important;
-                        width:33% !important;
-                        background:#FFF1E0 !important;
-                        color:#000000 !important;
-                        text-align:center !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:700 !important;
-                        padding:7px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        Operador:
-
-                    </td>
-
-                    <td style="
-                        display:table-cell !important;
-                        width:67% !important;
-                        background:#FFFFFF !important;
-                        color:#000000 !important;
-                        text-align:left !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:400 !important;
-                        padding:7px 10px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        {operador}
-
-                    </td>
-
-                </tr>
-
-
-                <!-- =====================================
-                     NOMBRE SERVICIO
-                     ===================================== -->
-
-                <tr style="
-                    display:table-row !important;
-                ">
-
-                    <td style="
-                        display:table-cell !important;
-                        width:33% !important;
-                        background:#FFF1E0 !important;
-                        color:#000000 !important;
-                        text-align:center !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:700 !important;
-                        padding:7px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        Nombre del servicio:
-
-                    </td>
-
-                    <td style="
-                        display:table-cell !important;
-                        width:67% !important;
-                        background:#FFFFFF !important;
-                        color:#000000 !important;
-                        text-align:left !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:400 !important;
-                        padding:7px 10px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        {nombre_servicio}
-
-                    </td>
-
-                </tr>
-
-
-                <!-- =====================================
-                     DIRECCION / CIUDAD
-                     ===================================== -->
-
-                <tr style="
-                    display:table-row !important;
-                ">
-
-                    <td style="
-                        display:table-cell !important;
-                        width:33% !important;
-                        background:#FFF1E0 !important;
-                        color:#000000 !important;
-                        text-align:center !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:700 !important;
-                        padding:7px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        Dirección/Ciudad:
-
-                    </td>
-
-                    <td style="
-                        display:table-cell !important;
-                        width:67% !important;
-                        background:#FFFFFF !important;
-                        color:#000000 !important;
-                        text-align:left !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:400 !important;
-                        padding:7px 10px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        {ciudad}
-                        ({lat_text}, {lon_text})
-
-                    </td>
-
-                </tr>
-
-
-                <!-- =====================================
-                     PRESUPUESTOS
-                     ===================================== -->
-
-                <tr style="
-                    display:table-row !important;
-                ">
-
-                    <td colspan="2"
-                        style="
-                            display:table-cell !important;
-                            width:100% !important;
-                            background:#F2F2F2 !important;
-                            color:{color} !important;
-                            text-align:center !important;
-                            font-family:Arial,sans-serif !important;
-                            font-size:21px !important;
-                            font-weight:700 !important;
-                            padding:5px !important;
-                            border:1px solid #000000 !important;
-                            box-sizing:border-box !important;
-                        ">
-
-                        Presupuestos y Condiciones
-
-                    </td>
-
-                </tr>
-
-
-                <!-- =====================================
-                     MRC
-                     ===================================== -->
-
-                <tr style="
-                    display:table-row !important;
-                ">
-
-                    <td style="
-                        display:table-cell !important;
-                        width:33% !important;
-                        background:#FFF1E0 !important;
-                        color:#000000 !important;
-                        text-align:center !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:700 !important;
-                        padding:7px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        MRC (Recurrente mensual)
-
-                    </td>
-
-                    <td style="
-                        display:table-cell !important;
-                        width:67% !important;
-                        background:#FFFFFF !important;
-                        color:#000000 !important;
-                        text-align:left !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:400 !important;
-                        padding:7px 10px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        {mrc_text}
-
-                    </td>
-
-                </tr>
-
-
-                <!-- =====================================
-                     NRC
-                     ===================================== -->
-
-                <tr style="
-                    display:table-row !important;
-                ">
-
-                    <td style="
-                        display:table-cell !important;
-                        width:33% !important;
-                        background:#FFF1E0 !important;
-                        color:#000000 !important;
-                        text-align:center !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:700 !important;
-                        padding:7px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        NRC (No recurrente)
-
-                    </td>
-
-                    <td style="
-                        display:table-cell !important;
-                        width:67% !important;
-                        background:#FFFFFF !important;
-                        color:#000000 !important;
-                        text-align:left !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:400 !important;
-                        padding:7px 10px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        {nrc_text}
-
-                    </td>
-
-                </tr>
-
-
-                <!-- =====================================
-                     TIEMPO CONTRATACION
-                     ===================================== -->
-
-                <tr style="
-                    display:table-row !important;
-                ">
-
-                    <td style="
-                        display:table-cell !important;
-                        width:33% !important;
-                        background:#FFF1E0 !important;
-                        color:#000000 !important;
-                        text-align:center !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:700 !important;
-                        padding:7px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        Tiempo Contratación (Meses)
-
-                    </td>
-
-                    <td style="
-                        display:table-cell !important;
-                        width:67% !important;
-                        background:#FFFFFF !important;
-                        color:#000000 !important;
-                        text-align:left !important;
-                        vertical-align:middle !important;
-                        font-family:Arial,sans-serif !important;
-                        font-size:18px !important;
-                        font-weight:400 !important;
-                        padding:7px 10px !important;
-                        border:1px solid #000000 !important;
-                        box-sizing:border-box !important;
-                    ">
-
-                        {term_text}
-
-                    </td>
-
-                </tr>
-
-
-            </tbody>
-
-        </table>
-
-    </div>
-    """
-
-    st.markdown(
-        html_block,
-        unsafe_allow_html=True
+        """
     )
 
 
 # =========================================================
-# MOSTRAR REGISTRO HISTÓRICO
+# REGISTRO HISTÓRICO
 # =========================================================
 
 def render_historical_record(record):
@@ -1545,36 +1547,48 @@ def render_historical_record(record):
         []
     )
 
-    # -----------------------------------------------------
-    # COMPATIBILIDAD CON REGISTROS ANTIGUOS
-    # -----------------------------------------------------
+    if not isinstance(
+        cliente,
+        dict
+    ):
 
-    if not isinstance(cliente, dict):
         cliente = {}
 
-    if not isinstance(presupuesto, dict):
+    if not isinstance(
+        presupuesto,
+        dict
+    ):
+
         presupuesto = {}
 
-    if not isinstance(oportunidades, list):
+    if not isinstance(
+        oportunidades,
+        list
+    ):
+
         oportunidades = []
 
     tipo = str(
         tipo
     ).upper()
 
-    # -----------------------------------------------------
-    # INFORMACIÓN HISTÓRICA
-    # -----------------------------------------------------
+    estado_color = (
+        "#16A34A"
+        if tipo == "POSITIVA"
+        else "#DC2626"
+    )
 
-    st.markdown(
+    render_html(
         f"""
         <div style="
-            background:#F2F2F2;
-            border:1px solid #000000;
-            padding:10px 15px;
-            margin-top:15px;
-            margin-bottom:15px;
+            background:#F8FAFC;
+            border:1px solid #D1D5DB;
+            border-radius:8px;
+            padding:14px 18px;
+            margin:20px 0 15px 0;
             font-family:Arial,sans-serif;
+            box-sizing:border-box;
+            overflow:hidden;
         ">
 
             <span style="
@@ -1587,9 +1601,9 @@ def render_historical_record(record):
 
             <span style="
                 margin-left:20px;
+                color:{estado_color};
                 font-size:16px;
-                font-weight:600;
-                color:#333333;
+                font-weight:700;
             ">
                 {safe_html(tipo)}
             </span>
@@ -1597,19 +1611,14 @@ def render_historical_record(record):
             <span style="
                 float:right;
                 font-size:14px;
-                color:#666666;
+                color:#6B7280;
             ">
                 {safe_html(record.get("fecha", ""))}
             </span>
 
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
-
-    # =====================================================
-    # POSITIVA
-    # =====================================================
 
     if tipo == "POSITIVA":
 
@@ -1657,18 +1666,15 @@ def render_historical_record(record):
                 0
             ),
 
-            factibilidad_id=fact_id
-        )
+            factibilidad_id=fact_id,
 
-    # =====================================================
-    # NEGATIVA
-    # =====================================================
+            color="#FF7A00"
+        )
 
     else:
 
         if not oportunidades:
 
-            # Registro antiguo que no tenía oportunidades.
             render_feasibility_response(
 
                 titulo="RESPUESTA DE FACTIBILIDAD",
@@ -1713,7 +1719,9 @@ def render_historical_record(record):
                     0
                 ),
 
-                factibilidad_id=fact_id
+                factibilidad_id=fact_id,
+
+                color="#DC2626"
             )
 
         else:
@@ -1768,7 +1776,9 @@ def render_historical_record(record):
                         0
                     ),
 
-                    factibilidad_id=fact_id
+                    factibilidad_id=fact_id,
+
+                    color="#FF7A00"
                 )
 
 
@@ -1792,6 +1802,13 @@ def load_data():
             / "test.json"
         )
 
+    if not geojson_path.exists():
+
+        raise FileNotFoundError(
+            "No se encontró test.json "
+            "en frontend/ ni en la raíz."
+        )
+
     with open(
         geojson_path,
         "r",
@@ -1801,9 +1818,11 @@ def load_data():
         data = json.load(f)
 
     return [
+
         shape(
             feature["geometry"]
         )
+
         for feature
         in data["features"]
     ]
@@ -1838,18 +1857,29 @@ engine = build_engine()
 # =========================================================
 
 section_options = [
+
     "Cotización",
+
     "Factibilidad",
+
     "Historial"
 ]
 
-if st.session_state.section not in section_options:
+if (
+    st.session_state.section
+    not in section_options
+):
 
-    st.session_state.section = "Cotización"
+    st.session_state.section = (
+        "Cotización"
+    )
 
 section = st.sidebar.radio(
+
     "Menú",
+
     section_options,
+
     index=section_options.index(
         st.session_state.section
     )
@@ -1869,18 +1899,53 @@ if section == "Cotización":
     )
 
     location_input = st.text_input(
-        "📍 Dirección o coordenadas"
+
+        "📍 Dirección o coordenadas",
+
+        placeholder=(
+            "Ej: Calle 100 # 15-20, "
+            "Bogotá o 4.6762,-74.0485"
+        ),
+
+        key="location_input"
     )
 
     mrc_cliente = st.number_input(
+
         "💰 MRC",
+
+        min_value=0,
+
         value=0,
-        step=100000
+
+        step=100000,
+
+        format="%d",
+
+        key="mrc_cliente"
     )
 
     if st.button(
-        "Analizar cotización"
+        "🔎 Analizar cotización",
+        type="primary",
+        key="analizar_cotizacion"
     ):
+
+        if not location_input.strip():
+
+            st.error(
+                "Ingresa una dirección o unas coordenadas."
+            )
+
+            st.stop()
+
+        if mrc_cliente <= 0:
+
+            st.error(
+                "El MRC debe ser mayor que cero."
+            )
+
+            st.stop()
 
         result = resolve_input(
             location_input
@@ -1889,7 +1954,7 @@ if section == "Cotización":
         if result is None:
 
             st.error(
-                "No se pudo encontrar ubicación."
+                "No se pudo encontrar la ubicación."
             )
 
             st.stop()
@@ -1919,7 +1984,9 @@ if section == "Cotización":
 
         best_point = None
 
-        density_map = defaultdict(int)
+        density_map = defaultdict(
+            int
+        )
 
         for h, idx in candidates:
 
@@ -1932,8 +1999,10 @@ if section == "Cotización":
             centroid = geometry.centroid
 
             distance = haversine(
+
                 lon,
                 lat,
+
                 centroid.x,
                 centroid.y
             )
@@ -1947,8 +2016,11 @@ if section == "Cotización":
             )
 
             score = capex_score(
+
                 distance,
+
                 density,
+
                 presence_bonus
             )
 
@@ -1957,13 +2029,11 @@ if section == "Cotización":
                 best_score = score
 
                 best_point = (
+
                     centroid.x,
+
                     centroid.y
                 )
-
-        # -------------------------------------------------
-        # DISTANCIA MÁXIMA
-        # -------------------------------------------------
 
         if best_point is not None:
 
@@ -1984,11 +2054,9 @@ if section == "Cotización":
 
         st.session_state.analysis = {
 
-            "lat":
-                lat,
+            "lat": lat,
 
-            "lon":
-                lon,
+            "lon": lon,
 
             "best_point":
                 best_point,
@@ -2025,9 +2093,6 @@ if section == "Cotización":
             f"${valor_unitario:,.2f} COP/m"
         )
 
-    # =====================================================
-    # RESULTADO COTIZACIÓN
-    # =====================================================
 
     if st.session_state.analysis:
 
@@ -2043,52 +2108,64 @@ if section == "Cotización":
             "best_point"
         ]
 
-        st.metric(
-            "CAPEX SCORE",
-            f"{data['score']:.4f}"
-        )
+        if data["score"] >= 0:
 
-        # -------------------------------------------------
-        # POSITIVA
-        # -------------------------------------------------
+            st.metric(
+                "CAPEX SCORE",
+                f"{data['score']:.4f}"
+            )
+
+        else:
+
+            st.metric(
+                "CAPEX SCORE",
+                "N/A"
+            )
 
         if not data.get(
             "negative_site",
             False
         ):
 
-            st.markdown(
+            render_html(
                 """
                 <div style="
-                    background-color:#ECFDF5;
+                    width:100%;
+                    background:#ECFDF5;
                     border:1px solid #10B981;
                     border-radius:10px;
                     padding:20px;
                     margin:15px 0 20px 0;
                     color:#111827;
+                    font-family:Arial,sans-serif;
+                    box-sizing:border-box;
                 ">
 
                     <h3 style="
                         color:#047857;
-                        margin-top:0;
+                        margin:0 0 12px 0;
+                        font-size:22px;
                     ">
                         🟢 COBERTURA POSITIVA
                     </h3>
 
                     <p style="
                         line-height:1.6;
+                        margin:8px 0;
                     ">
                         Confirmamos cobertura POSITIVA para las sedes en adjunto, sujeta a viabilidad en sitio y a los permisos de uso de infraestructura de terceros, de ser aplicable.
                     </p>
 
                     <p style="
                         font-weight:700;
+                        margin:16px 0 8px 0;
                     ">
                         Términos y Condiciones:
                     </p>
 
                     <p style="
                         line-height:1.7;
+                        margin:0;
                     ">
                         Tarifas antes de IVA.<br>
                         Medio. Fibra Óptica.<br>
@@ -2108,9 +2185,10 @@ if section == "Cotización":
                     </p>
 
                     <p style="
-                        margin-top:18px;
+                        margin:18px 0 0 0;
                         padding-top:12px;
                         border-top:1px solid #A7F3D0;
+                        line-height:1.6;
                     ">
                         <strong>NOTA:</strong>
                         Recordar que son 3 conceptos que se facturan:
@@ -2118,25 +2196,43 @@ if section == "Cotización":
                     </p>
 
                 </div>
-                """,
-                unsafe_allow_html=True
+                """
             )
-
-        # -------------------------------------------------
-        # NEGATIVA
-        # -------------------------------------------------
 
         else:
 
-            st.error(
-                "🔴 SITIO NEGATIVO\n\n"
-                "No se encontró infraestructura "
-                "cercana al cliente."
-            )
+            render_html(
+                """
+                <div style="
+                    width:100%;
+                    background:#FEF2F2;
+                    border:1px solid #EF4444;
+                    border-radius:10px;
+                    padding:18px;
+                    margin:15px 0 20px 0;
+                    color:#991B1B;
+                    font-family:Arial,sans-serif;
+                    box-sizing:border-box;
+                ">
 
-        # =================================================
-        # MAPA
-        # =================================================
+                    <div style="
+                        font-size:22px;
+                        font-weight:700;
+                        margin-bottom:8px;
+                    ">
+                        🔴 SITIO NEGATIVO
+                    </div>
+
+                    <div style="
+                        color:#7F1D1D;
+                        line-height:1.6;
+                    ">
+                        No se encontró infraestructura cercana al cliente.
+                    </div>
+
+                </div>
+                """
+            )
 
         m = folium.Map(
 
@@ -2225,9 +2321,9 @@ if section == "Cotización":
 
             m,
 
-            height=750,
+            height=650,
 
-            width=1100,
+            width=None,
 
             key="DRAW_MAP"
         )
@@ -2246,23 +2342,23 @@ if section == "Cotización":
 
                 last = drawings[-1]
 
+                geometry_data = last.get(
+                    "geometry",
+                    {}
+                )
+
                 if (
-                    last.get(
-                        "geometry",
-                        {}
-                    ).get(
+                    geometry_data.get(
                         "type"
                     )
-                    ==
-                    "LineString"
+                    == "LineString"
                 ):
 
                     st.session_state.draw_geojson = (
-                        last[
-                            "geometry"
-                        ][
-                            "coordinates"
-                        ]
+                        geometry_data.get(
+                            "coordinates",
+                            []
+                        )
                     )
 
         total = 0
@@ -2302,12 +2398,12 @@ if section == "Cotización":
                 f"{total:,.2f} metros"
             )
 
-        # -------------------------------------------------
-        # IR A FACTIBILIDAD
-        # -------------------------------------------------
+        st.markdown("")
 
         if st.button(
-            "Evaluar Factibilidad"
+            "💰 Evaluar Factibilidad",
+            type="primary",
+            key="ir_factibilidad"
         ):
 
             st.session_state.section = (
@@ -2329,8 +2425,19 @@ elif section == "Factibilidad":
 
     if not st.session_state.analysis:
 
-        st.warning(
-            "Primero genera una cotización."
+        render_html(
+            """
+            <div style="
+                background:#FFF7ED;
+                border:1px solid #FDBA74;
+                border-radius:8px;
+                padding:15px;
+                color:#9A3412;
+                font-family:Arial,sans-serif;
+            ">
+                <strong>Primero genera una cotización.</strong>
+            </div>
+            """
         )
 
         st.stop()
@@ -2338,10 +2445,6 @@ elif section == "Factibilidad":
     data = (
         st.session_state.analysis
     )
-
-    # =====================================================
-    # DISTANCIA
-    # =====================================================
 
     total_distance = 0
 
@@ -2375,10 +2478,6 @@ elif section == "Factibilidad":
                 lat2
             )
 
-    # =====================================================
-    # COSTO OBRAS
-    # =====================================================
-
     valor_unitario = data[
         "valor_unitario"
     ]
@@ -2388,101 +2487,183 @@ elif section == "Factibilidad":
         * valor_unitario
     )
 
-    # =====================================================
-    # INFORMACIÓN
-    # =====================================================
+    render_html(
+        f"""
+        <div style="
+            width:100%;
+            background:#F8FAFC;
+            border:1px solid #D1D5DB;
+            border-radius:10px;
+            padding:16px 20px;
+            margin:10px 0 25px 0;
+            font-family:Arial,sans-serif;
+            box-sizing:border-box;
+        ">
 
-    st.write(
-        f"📍 Ciudad: "
-        f"{data['ciudad'].title()}"
+            <div style="
+                display:flex;
+                flex-wrap:wrap;
+                gap:30px;
+            ">
+
+                <div>
+                    <span style="
+                        color:#6B7280;
+                        font-size:14px;
+                    ">
+                        Ciudad
+                    </span>
+
+                    <div style="
+                        color:#1F2937;
+                        font-size:18px;
+                        font-weight:700;
+                        margin-top:3px;
+                    ">
+                        {safe_html(data["ciudad"].title())}
+                    </div>
+                </div>
+
+                <div>
+                    <span style="
+                        color:#6B7280;
+                        font-size:14px;
+                    ">
+                        Distancia
+                    </span>
+
+                    <div style="
+                        color:#1F2937;
+                        font-size:18px;
+                        font-weight:700;
+                        margin-top:3px;
+                    ">
+                        {total_distance:,.2f} m
+                    </div>
+                </div>
+
+                <div>
+                    <span style="
+                        color:#6B7280;
+                        font-size:14px;
+                    ">
+                        Valor unitario
+                    </span>
+
+                    <div style="
+                        color:#1F2937;
+                        font-size:18px;
+                        font-weight:700;
+                        margin-top:3px;
+                    ">
+                        ${valor_unitario:,.2f} COP/m
+                    </div>
+                </div>
+
+                <div>
+                    <span style="
+                        color:#6B7280;
+                        font-size:14px;
+                    ">
+                        Costo de obras
+                    </span>
+
+                    <div style="
+                        color:#FF7A00;
+                        font-size:18px;
+                        font-weight:700;
+                        margin-top:3px;
+                    ">
+                        ${costo_obra:,.0f} COP
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+        """
     )
-
-    st.write(
-        f"📏 Distancia: "
-        f"{total_distance:,.2f} m"
-    )
-
-    st.write(
-        f"💵 Valor unitario: "
-        f"${valor_unitario:,.2f} COP/m"
-    )
-
-    # =====================================================
-    # CLIENTE
-    # =====================================================
 
     operador = st.text_input(
+
         "Operador",
+
+        placeholder="Ingrese el operador",
+
         key="fact_operador"
     )
 
     nombre_servicio = st.text_input(
+
         "Nombre del servicio",
+
+        placeholder="Ingrese el nombre del servicio",
+
         key="fact_nombre_servicio"
     )
 
-    # =====================================================
-    # MRC
-    # =====================================================
+    col1, col2, col3 = st.columns(3)
 
-    mrc = st.number_input(
+    with col1:
 
-        "MRC",
+        mrc = st.number_input(
 
-        value=int(
-            data["mrc"]
-        ),
+            "MRC",
 
-        step=100000,
+            min_value=0,
 
-        disabled=True,
+            value=int(
+                data["mrc"]
+            ),
 
-        key="fact_mrc"
-    )
+            step=100000,
 
-    # =====================================================
-    # NRC
-    # =====================================================
+            format="%d",
 
-    nrc = st.number_input(
+            disabled=True,
 
-        "NRC",
+            key="fact_mrc"
+        )
 
-        value=0,
+    with col2:
 
-        step=100000,
+        nrc = st.number_input(
 
-        min_value=0,
+            "NRC",
 
-        key="fact_nrc"
-    )
+            min_value=0,
 
-    # =====================================================
-    # TERM
-    # =====================================================
+            value=0,
 
-    term = st.selectbox(
+            step=100000,
 
-        "Term (meses)",
+            format="%d",
 
-        options=[
-            12,
-            24,
-            36
-        ],
+            key="fact_nrc"
+        )
 
-        index=1,
+    with col3:
 
-        key="fact_term"
-    )
+        term = st.selectbox(
 
-    # =====================================================
-    # COSTO OBRAS
-    # =====================================================
+            "Term (meses)",
+
+            options=[
+                12,
+                24,
+                36
+            ],
+
+            index=1,
+
+            key="fact_term"
+        )
 
     st.number_input(
 
         "Costo de Obras",
+
+        min_value=0.0,
 
         value=float(
             costo_obra
@@ -2493,12 +2674,12 @@ elif section == "Factibilidad":
         key="fact_costo_obra"
     )
 
-    # =====================================================
-    # EVALUAR
-    # =====================================================
-
     if st.button(
-        "Evaluar factibilidad",
+
+        "🔎 Evaluar factibilidad",
+
+        type="primary",
+
         key="evaluar_factibilidad"
     ):
 
@@ -2533,10 +2714,6 @@ elif section == "Factibilidad":
 
         ) if mrc_int > 0 else 999999
 
-        # =================================================
-        # POSITIVA
-        # =================================================
-
         if feasible:
 
             st.session_state.factibilidad_resultado = {
@@ -2568,10 +2745,6 @@ elif section == "Factibilidad":
                 "distancia":
                     total_distance
             }
-
-        # =================================================
-        # NEGATIVA
-        # =================================================
 
         else:
 
@@ -2621,10 +2794,6 @@ elif section == "Factibilidad":
 
         st.rerun()
 
-    # =====================================================
-    # MOSTRAR RESULTADO
-    # =====================================================
-
     resultado = (
         st.session_state.factibilidad_resultado
     )
@@ -2636,14 +2805,25 @@ elif section == "Factibilidad":
             "POSITIVA"
         )
 
-        # =================================================
-        # POSITIVA
-        # =================================================
-
         if tipo == "POSITIVA":
 
-            st.success(
-                "🟢 FACTIBILIDAD POSITIVA"
+            render_html(
+                """
+                <div style="
+                    width:100%;
+                    background:#ECFDF5;
+                    border:1px solid #10B981;
+                    border-radius:10px;
+                    padding:15px 20px;
+                    margin:25px 0 20px 0;
+                    color:#047857;
+                    font-family:Arial,sans-serif;
+                    font-size:20px;
+                    font-weight:700;
+                ">
+                    🟢 FACTIBILIDAD POSITIVA
+                </div>
+                """
             )
 
             render_feasibility_response(
@@ -2692,17 +2872,40 @@ elif section == "Factibilidad":
 
                 factibilidad_id=(
                     st.session_state.factibilidad_id
-                )
-            )
+                ),
 
-        # =================================================
-        # NEGATIVA
-        # =================================================
+                color="#FF7A00"
+            )
 
         else:
 
-            st.error(
-                "🔴 FACTIBILIDAD NEGATIVA"
+            render_html(
+                """
+                <div style="
+                    width:100%;
+                    background:#FEF2F2;
+                    border:1px solid #EF4444;
+                    border-radius:10px;
+                    padding:15px 20px;
+                    margin:25px 0 20px 0;
+                    color:#991B1B;
+                    font-family:Arial,sans-serif;
+                    font-size:20px;
+                    font-weight:700;
+                ">
+                    🔴 FACTIBILIDAD NEGATIVA
+                </div>
+
+                <div style="
+                    color:#374151;
+                    font-family:Arial,sans-serif;
+                    margin-bottom:15px;
+                    line-height:1.5;
+                ">
+                    Se presentan las alternativas disponibles
+                    para convertir la factibilidad en positiva.
+                </div>
+                """
             )
 
             ops = resultado.get(
@@ -2762,54 +2965,69 @@ elif section == "Factibilidad":
 
                     factibilidad_id=(
                         st.session_state.factibilidad_id
-                    )
-                )
+                    ),
 
-        # =================================================
-        # GUARDAR
-        # =================================================
+                    color="#FF7A00"
+                )
 
         if st.session_state.factibilidad_id:
 
-            st.success(
-                f"✅ Factibilidad guardada correctamente "
-                f"con ID "
-                f"{st.session_state.factibilidad_id}"
+            render_html(
+                f"""
+                <div style="
+                    width:100%;
+                    background:#ECFDF5;
+                    border:1px solid #10B981;
+                    border-radius:8px;
+                    padding:12px 15px;
+                    margin-top:20px;
+                    color:#065F46;
+                    font-family:Arial,sans-serif;
+                    font-weight:700;
+                    box-sizing:border-box;
+                ">
+                    ✅ Factibilidad guardada correctamente
+                    con ID
+                    {safe_html(st.session_state.factibilidad_id)}
+                </div>
+                """
             )
 
         else:
 
-            st.markdown(
+            render_html(
                 """
                 <div style="
-                    margin-top:20px;
-                    margin-bottom:10px;
-                    padding:12px 15px;
+                    width:100%;
+                    margin-top:25px;
+                    margin-bottom:12px;
+                    padding:14px 16px;
                     background:#FFF7ED;
                     border:1px solid #FF7A00;
                     border-radius:8px;
-                    color:#000000;
+                    color:#7C2D12;
                     font-family:Arial,sans-serif;
+                    box-sizing:border-box;
                 ">
                     <strong>
                         La factibilidad todavía no ha sido enviada.
                     </strong>
+
                     <br>
+
                     Presiona el botón para guardarla en el historial.
                 </div>
-                """,
-                unsafe_allow_html=True
+                """
             )
 
             if st.button(
+
                 "📨 Enviar y guardar factibilidad",
+
                 type="primary",
+
                 key="guardar_factibilidad"
             ):
-
-                # -----------------------------------------
-                # CONSTRUIR REGISTRO
-                # -----------------------------------------
 
                 record = {
 
@@ -2945,31 +3163,37 @@ elif section == "Historial":
         []
     )
 
-    # =====================================================
-    # SIN REGISTROS
-    # =====================================================
-
     if not records:
 
-        st.info(
-            "Todavía no existen "
-            "factibilidades guardadas."
+        render_html(
+            """
+            <div style="
+                background:#F8FAFC;
+                border:1px solid #D1D5DB;
+                border-radius:8px;
+                padding:18px;
+                color:#374151;
+                font-family:Arial,sans-serif;
+                box-sizing:border-box;
+            ">
+                Todavía no existen factibilidades guardadas.
+            </div>
+            """
         )
 
         st.stop()
 
-    # =====================================================
-    # TOTAL
-    # =====================================================
-
-    st.markdown(
+    render_html(
         f"""
         <div style="
-            background:#F2F2F2;
-            border:1px solid #000000;
-            padding:15px;
+            width:100%;
+            background:#F8FAFC;
+            border:1px solid #D1D5DB;
+            border-radius:8px;
+            padding:15px 18px;
             margin-bottom:20px;
             font-family:Arial,sans-serif;
+            box-sizing:border-box;
         ">
 
             <span style="
@@ -2981,6 +3205,7 @@ elif section == "Historial":
             </span>
 
             <span style="
+                color:#1F2937;
                 font-size:22px;
                 font-weight:700;
                 margin-left:10px;
@@ -2989,13 +3214,8 @@ elif section == "Historial":
             </span>
 
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
-
-    # =====================================================
-    # SELECCIONAR FACTIBILIDAD
-    # =====================================================
 
     history_options = []
 
@@ -3013,7 +3233,11 @@ elif section == "Historial":
             {}
         )
 
-        if not isinstance(cliente, dict):
+        if not isinstance(
+            cliente,
+            dict
+        ):
+
             cliente = {}
 
         servicio = cliente.get(
@@ -3049,10 +3273,6 @@ elif section == "Historial":
             option
         ] = item
 
-    # -----------------------------------------------------
-    # SELECCIÓN
-    # -----------------------------------------------------
-
     default_index = 0
 
     if (
@@ -3077,15 +3297,15 @@ elif section == "Historial":
         key="historial_selector"
     )
 
-    st.session_state.historial_seleccionado = selected
-
-    selected_record = record_by_option.get(
+    st.session_state.historial_seleccionado = (
         selected
     )
 
-    # =====================================================
-    # MOSTRAR FACTIBILIDAD COMPLETA
-    # =====================================================
+    selected_record = (
+        record_by_option.get(
+            selected
+        )
+    )
 
     if selected_record:
 
@@ -3093,23 +3313,19 @@ elif section == "Historial":
             selected_record
         )
 
-    # =====================================================
-    # TABLA RESUMEN
-    # =====================================================
-
-    st.markdown(
+    render_html(
         """
         <div style="
             margin-top:35px;
             margin-bottom:10px;
             color:#FF7A00;
+            font-family:Arial,sans-serif;
             font-size:22px;
             font-weight:700;
         ">
             Registros guardados
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
 
     summary_rows = []
@@ -3121,7 +3337,11 @@ elif section == "Historial":
             {}
         )
 
-        if not isinstance(cliente, dict):
+        if not isinstance(
+            cliente,
+            dict
+        ):
+
             cliente = {}
 
         summary_rows.append({
@@ -3169,9 +3389,12 @@ elif section == "Historial":
         })
 
     st.dataframe(
+
         pd.DataFrame(
             summary_rows
         ),
-        width="stretch",
+
+        use_container_width=True,
+
         hide_index=True
     )

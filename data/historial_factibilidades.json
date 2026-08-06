@@ -1,5 +1,5 @@
 {
-    "ultimo_serial": 5,
+    "ultimo_serial": 6,
     "factibilidades": [
         {
             "tipo": "POSITIVA",
@@ -142,6 +142,52 @@
             "serial": 5,
             "fingerprint": "4c8ab9daa3980835140a02e15a36d374c454370c7878ff6cc96952709f7f54cc",
             "fecha": "2026-08-04 21:55:32"
+        },
+        {
+            "tipo": "NEGATIVA",
+            "estado": "NEGATIVA",
+            "datos_cliente": {
+                "operador": "PARTNERS TELECOM COLOMBIA",
+                "nombre_servicio": "BTA Store Mercurio Soacha",
+                "ciudad": "bogota",
+                "lat": 4.6294001,
+                "lon": -74.09775
+            },
+            "presupuestos": {
+                "mrc": 388000,
+                "nrc": 0,
+                "term": 12,
+                "costo_obra": 21760838,
+                "distancia": 2072.3399086956224,
+                "payback": 56.08463402061856
+            },
+            "oportunidades": [
+                {
+                    "oportunidad": 1,
+                    "term": 12,
+                    "mrc": 3626807,
+                    "nrc": 0,
+                    "paybackMeses": 6.0
+                },
+                {
+                    "oportunidad": 2,
+                    "term": 36,
+                    "mrc": 2720105,
+                    "nrc": 0,
+                    "paybackMeses": 8.0
+                },
+                {
+                    "oportunidad": 3,
+                    "term": 24,
+                    "mrc": 3264126,
+                    "nrc": 0,
+                    "paybackMeses": 6.67
+                }
+            ],
+            "id": "CO000006",
+            "serial": 6,
+            "fingerprint": "70db8741c8a0e1909d2f5ea4edc0d41748763287017c0e2ce0882e1d1352aaba",
+            "fecha": "2026-08-06 20:30:21"
         }
     ]
 }
