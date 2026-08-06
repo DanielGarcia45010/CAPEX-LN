@@ -1,5 +1,5 @@
 {
-    "ultimo_serial": 6,
+    "ultimo_serial": 9,
     "factibilidades": [
         {
             "tipo": "POSITIVA",
@@ -188,6 +188,100 @@
             "serial": 6,
             "fingerprint": "70db8741c8a0e1909d2f5ea4edc0d41748763287017c0e2ce0882e1d1352aaba",
             "fecha": "2026-08-06 20:30:21"
+        },
+        {
+            "tipo": "NEGATIVA",
+            "estado": "NEGATIVA",
+            "datos_cliente": {
+                "operador": "CIRION",
+                "nombre_servicio": "METRO GIRON CIRION",
+                "ciudad": "bucaramanga",
+                "lat": 7.0648318,
+                "lon": -73.1766924
+            },
+            "presupuestos": {
+                "mrc": 488404,
+                "nrc": 450000,
+                "term": 12,
+                "costo_obra": 6291040,
+                "distancia": 661.248826726062,
+                "payback": 11.959443411601871
+            },
+            "oportunidades": [
+                {
+                    "oportunidad": 1,
+                    "term": 12,
+                    "mrc": 1048507,
+                    "nrc": 0,
+                    "paybackMeses": 6.0
+                },
+                {
+                    "oportunidad": 2,
+                    "term": 36,
+                    "mrc": 786380,
+                    "nrc": 0,
+                    "paybackMeses": 8.0
+                },
+                {
+                    "oportunidad": 3,
+                    "term": 24,
+                    "mrc": 943656,
+                    "nrc": 0,
+                    "paybackMeses": 6.67
+                }
+            ],
+            "id": "CO000007",
+            "serial": 7,
+            "fingerprint": "8bcaff6a1b89d4ac9e92bbc143bc8a20f5de280ab72df5e8f524d3174ad35412",
+            "fecha": "2026-08-06 20:41:12"
+        },
+        {
+            "tipo": "POSITIVA",
+            "estado": "POSITIVA",
+            "datos_cliente": {
+                "operador": "CIRION",
+                "nombre_servicio": "MEJORAMIENTO PARA EL HOGAR  EASY 4 SUR",
+                "ciudad": "medellin",
+                "lat": 6.2028355,
+                "lon": -75.583916
+            },
+            "presupuestos": {
+                "mrc": 326207,
+                "nrc": 400000,
+                "term": 12,
+                "costo_obra": 1497063,
+                "distancia": 116.65903480245008,
+                "payback": 3.3630884683651794
+            },
+            "oportunidades": [],
+            "id": "CO000008",
+            "serial": 8,
+            "fingerprint": "e0c7c6e3a173a5c44eea44b00539e6a14319181e9f813301efb06de18cf87404",
+            "fecha": "2026-08-06 20:54:34"
+        },
+        {
+            "tipo": "POSITIVA",
+            "estado": "POSITIVA",
+            "datos_cliente": {
+                "operador": "CIRION",
+                "nombre_servicio": "MEJORAMIENTO PARA EL HOGAR EASY 4 SUR",
+                "ciudad": "medellin",
+                "lat": 6.2452812,
+                "lon": -75.5740285
+            },
+            "presupuestos": {
+                "mrc": 326207,
+                "nrc": 400000,
+                "term": 36,
+                "costo_obra": 4978306,
+                "distancia": 387.93579794038294,
+                "payback": 14.034971659099897
+            },
+            "oportunidades": [],
+            "id": "CO000009",
+            "serial": 9,
+            "fingerprint": "f945125111896b1afeda86a419aa0eda6a99588b832ca321dc1cea0326241da0",
+            "fecha": "2026-08-06 22:12:09"
         }
     ]
 }
