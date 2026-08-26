@@ -15,11 +15,13 @@ import html
 import hashlib
 import textwrap
 
-from datetime import datetime
+from datetime import datetime, timezone
 from shapely.geometry import shape
 from collections import defaultdict
 from streamlit_folium import st_folium
 from folium.plugins import Draw
+
+from supabase import create_client, Client
 
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
@@ -38,13 +40,61 @@ st.set_page_config(
 
 
 # =========================================================
+# SUPABASE
+# =========================================================
+
+@st.cache_resource
+def get_supabase() -> Client:
+
+    supabase_url = st.secrets.get(
+        "SUPABASE_URL",
+        ""
+    )
+
+    supabase_key = st.secrets.get(
+        "SUPABASE_KEY",
+        ""
+    )
+
+    if not supabase_url:
+        raise RuntimeError(
+            "No se encontró SUPABASE_URL en "
+            "Streamlit Secrets."
+        )
+
+    if not supabase_key:
+        raise RuntimeError(
+            "No se encontró SUPABASE_KEY en "
+            "Streamlit Secrets."
+        )
+
+    return create_client(
+        supabase_url,
+        supabase_key
+    )
+
+
+try:
+
+    supabase = get_supabase()
+
+except Exception as e:
+
+    st.error(
+        "Error conectando con Supabase."
+    )
+
+    st.exception(e)
+
+    st.stop()
+
+
+# =========================================================
 # RUTAS
 # =========================================================
 
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-HISTORY_FILE = DATA_DIR / "historial_factibilidades.json"
 
 
 # =========================================================
@@ -192,10 +242,6 @@ st.markdown(
 
 # =========================================================
 # FUNCIÓN CENTRAL PARA HTML
-#
-# IMPORTANTE:
-# Se utiliza st.html() directamente para evitar que
-# Streamlit interprete el HTML como texto/código.
 # =========================================================
 
 def render_html(content):
@@ -296,154 +342,184 @@ for key, value in DEFAULT_STATE.items():
 
 
 # =========================================================
-# HISTORIAL JSON
+# HISTORIAL - SUPABASE
 # =========================================================
-
-def initialize_history_file():
-
-    if not HISTORY_FILE.exists():
-
-        initial_data = {
-            "ultimo_serial": 0,
-            "factibilidades": []
-        }
-
-        save_history(
-            initial_data
-        )
-
-
-def save_history(data):
-
-    temp_file = HISTORY_FILE.with_suffix(
-        ".tmp"
-    )
-
-    with open(
-        temp_file,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            data,
-            f,
-            ensure_ascii=False,
-            indent=4
-        )
-
-    temp_file.replace(
-        HISTORY_FILE
-    )
-
 
 def load_history():
 
-    initialize_history_file()
-
     try:
 
-        with open(
-            HISTORY_FILE,
-            "r",
-            encoding="utf-8"
-        ) as f:
+        response = (
+            supabase
+            .table("factibilidades")
+            .select("*")
+            .order(
+                "serial",
+                desc=False
+            )
+            .execute()
+        )
 
-            data = json.load(f)
+        rows = response.data or []
 
-    except Exception:
-
-        data = {
-            "ultimo_serial": 0,
-            "factibilidades": []
-        }
-
-        save_history(data)
-
-        return data
-
-    if isinstance(data, list):
+        factibilidades = []
 
         max_serial = 0
 
-        for item in data:
+        for row in rows:
 
-            fact_id = str(
-                item.get(
-                    "id",
-                    ""
-                )
-            )
+            try:
 
-            match = re.search(
-                r"CO(\d+)",
-                fact_id
-            )
-
-            if match:
-
-                max_serial = max(
-                    max_serial,
-                    int(match.group(1))
+                serial = int(
+                    row.get(
+                        "serial",
+                        0
+                    )
                 )
 
-        data = {
-            "ultimo_serial": max_serial,
-            "factibilidades": data
-        }
+            except Exception:
 
-        save_history(data)
-
-    if not isinstance(data, dict):
-
-        data = {
-            "ultimo_serial": 0,
-            "factibilidades": []
-        }
-
-    if "ultimo_serial" not in data:
-
-        data["ultimo_serial"] = 0
-
-    if "factibilidades" not in data:
-
-        data["factibilidades"] = []
-
-    max_serial = 0
-
-    for item in data["factibilidades"]:
-
-        fact_id = str(
-            item.get(
-                "id",
-                ""
-            )
-        )
-
-        match = re.search(
-            r"CO(\d+)",
-            fact_id
-        )
-
-        if match:
+                serial = 0
 
             max_serial = max(
                 max_serial,
-                int(match.group(1))
+                serial
             )
 
-    if max_serial > int(
-        data["ultimo_serial"]
-    ):
+            datos_cliente = row.get(
+                "datos_cliente",
+                {}
+            )
 
-        data["ultimo_serial"] = max_serial
+            presupuestos = row.get(
+                "presupuestos",
+                {}
+            )
 
-        save_history(data)
+            oportunidades = row.get(
+                "oportunidades",
+                []
+            )
 
-    return data
+            if not isinstance(
+                datos_cliente,
+                dict
+            ):
 
+                datos_cliente = {}
 
-initialize_history_file()
+            if not isinstance(
+                presupuestos,
+                dict
+            ):
+
+                presupuestos = {}
+
+            if not isinstance(
+                oportunidades,
+                list
+            ):
+
+                oportunidades = []
+
+            fecha = row.get(
+                "fecha",
+                ""
+            )
+
+            if fecha:
+
+                try:
+
+                    fecha_dt = datetime.fromisoformat(
+                        str(fecha).replace(
+                            "Z",
+                            "+00:00"
+                        )
+                    )
+
+                    fecha = fecha_dt.astimezone(
+                        timezone.utc
+                    ).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                except Exception:
+
+                    fecha = str(fecha)
+
+            record = {
+
+                "id":
+                    row.get(
+                        "factibilidad_id",
+                        ""
+                    ),
+
+                "serial":
+                    serial,
+
+                "fingerprint":
+                    row.get(
+                        "fingerprint",
+                        ""
+                    ),
+
+                "fecha":
+                    fecha,
+
+                "tipo":
+                    row.get(
+                        "tipo",
+                        ""
+                    ),
+
+                "estado":
+                    row.get(
+                        "estado",
+                        row.get(
+                            "tipo",
+                            ""
+                        )
+                    ),
+
+                "datos_cliente":
+                    datos_cliente,
+
+                "presupuestos":
+                    presupuestos,
+
+                "oportunidades":
+                    oportunidades
+            }
+
+            factibilidades.append(
+                record
+            )
+
+        return {
+
+            "ultimo_serial":
+                max_serial,
+
+            "factibilidades":
+                factibilidades
+        }
+
+    except Exception as e:
+
+        st.error(
+            "No fue posible cargar el historial desde Supabase."
+        )
+
+        st.exception(e)
+
+        return {
+
+            "ultimo_serial": 0,
+
+            "factibilidades": []
+        }
 
 
 # =========================================================
@@ -456,7 +532,10 @@ def get_next_factibilidad_id():
 
     next_serial = (
         int(
-            history["ultimo_serial"]
+            history.get(
+                "ultimo_serial",
+                0
+            )
         )
         + 1
     )
@@ -570,12 +649,10 @@ def build_factibilidad_fingerprint(record):
 
 
 # =========================================================
-# REGISTRAR FACTIBILIDAD
+# REGISTRAR FACTIBILIDAD EN SUPABASE
 # =========================================================
 
 def register_factibilidad(record):
-
-    history = load_history()
 
     fingerprint = (
         build_factibilidad_fingerprint(
@@ -583,73 +660,273 @@ def register_factibilidad(record):
         )
     )
 
-    for existing in history[
-        "factibilidades"
-    ]:
+    # -----------------------------------------------------
+    # BUSCAR DUPLICADO
+    # -----------------------------------------------------
 
-        if existing.get(
-            "fingerprint"
-        ) == fingerprint:
+    try:
+
+        duplicate_response = (
+            supabase
+            .table("factibilidades")
+            .select(
+                "factibilidad_id,serial"
+            )
+            .eq(
+                "fingerprint",
+                fingerprint
+            )
+            .limit(1)
+            .execute()
+        )
+
+        duplicate_rows = (
+            duplicate_response.data or []
+        )
+
+        if duplicate_rows:
+
+            existing = duplicate_rows[0]
 
             return (
-                existing.get("id"),
+
+                existing.get(
+                    "factibilidad_id"
+                ),
+
                 False
             )
 
-    next_serial = (
-        int(
-            history.get(
-                "ultimo_serial",
-                0
-            )
+    except Exception as e:
+
+        st.error(
+            "No fue posible verificar duplicados."
         )
-        + 1
+
+        st.exception(e)
+
+        return (
+            None,
+            False
+        )
+
+
+    # -----------------------------------------------------
+    # OBTENER SIGUIENTE SERIAL
+    # -----------------------------------------------------
+
+    try:
+
+        serial_response = (
+            supabase
+            .table("factibilidades")
+            .select("serial")
+            .order(
+                "serial",
+                desc=True
+            )
+            .limit(1)
+            .execute()
+        )
+
+        serial_rows = (
+            serial_response.data or []
+        )
+
+        if serial_rows:
+
+            max_serial = int(
+                serial_rows[0].get(
+                    "serial",
+                    0
+                )
+            )
+
+        else:
+
+            max_serial = 0
+
+    except Exception as e:
+
+        st.error(
+            "No fue posible obtener el consecutivo."
+        )
+
+        st.exception(e)
+
+        return (
+            None,
+            False
+        )
+
+
+    next_serial = (
+        max_serial + 1
     )
 
     fact_id = (
         f"CO{next_serial:06d}"
     )
 
-    record["id"] = fact_id
 
-    record["serial"] = next_serial
+    # -----------------------------------------------------
+    # FECHA
+    # -----------------------------------------------------
 
-    record["fingerprint"] = fingerprint
+    fecha = datetime.now(
+        timezone.utc
+    ).isoformat()
 
-    record["fecha"] = (
-        datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
+
+    # -----------------------------------------------------
+    # ESTADO
+    # -----------------------------------------------------
+
+    tipo = str(
+        record.get(
+            "tipo",
+            "NEGATIVA"
         )
-    )
+    ).upper()
 
-    if record.get(
-        "tipo"
-    ) == "POSITIVA":
+    if tipo == "POSITIVA":
 
-        record["estado"] = "POSITIVA"
+        estado = "POSITIVA"
 
     else:
 
-        record["estado"] = "NEGATIVA"
+        estado = "NEGATIVA"
 
-    history["ultimo_serial"] = (
-        next_serial
+
+    # -----------------------------------------------------
+    # DATOS
+    # -----------------------------------------------------
+
+    datos_cliente = record.get(
+        "datos_cliente",
+        {}
     )
 
-    history[
-        "factibilidades"
-    ].append(
-        record
+    presupuestos = record.get(
+        "presupuestos",
+        {}
     )
 
-    save_history(
-        history
+    oportunidades = record.get(
+        "oportunidades",
+        []
     )
 
-    return (
-        fact_id,
-        True
-    )
+
+    # -----------------------------------------------------
+    # INSERTAR EN SUPABASE
+    # -----------------------------------------------------
+
+    row = {
+
+        "factibilidad_id":
+            fact_id,
+
+        "serial":
+            next_serial,
+
+        "fingerprint":
+            fingerprint,
+
+        "fecha":
+            fecha,
+
+        "tipo":
+            tipo,
+
+        "estado":
+            estado,
+
+        "datos_cliente":
+            datos_cliente,
+
+        "presupuestos":
+            presupuestos,
+
+        "oportunidades":
+            oportunidades
+    }
+
+
+    try:
+
+        response = (
+            supabase
+            .table("factibilidades")
+            .insert(row)
+            .execute()
+        )
+
+        inserted = (
+            response.data or []
+        )
+
+        if not inserted:
+
+            raise RuntimeError(
+                "Supabase no devolvió el registro insertado."
+            )
+
+        return (
+            fact_id,
+            True
+        )
+
+    except Exception as e:
+
+        # -----------------------------------------------
+        # PROTECCIÓN CONTRA CONCURRENCIA
+        # -----------------------------------------------
+
+        try:
+
+            duplicate_response = (
+                supabase
+                .table("factibilidades")
+                .select(
+                    "factibilidad_id"
+                )
+                .eq(
+                    "fingerprint",
+                    fingerprint
+                )
+                .limit(1)
+                .execute()
+            )
+
+            duplicate_rows = (
+                duplicate_response.data or []
+            )
+
+            if duplicate_rows:
+
+                return (
+
+                    duplicate_rows[0].get(
+                        "factibilidad_id"
+                    ),
+
+                    False
+                )
+
+        except Exception:
+            pass
+
+        st.error(
+            "No fue posible guardar la factibilidad en Supabase."
+        )
+
+        st.exception(e)
+
+        return (
+            None,
+            False
+        )
 
 
 # =========================================================
@@ -3121,28 +3398,36 @@ elif section == "Factibilidad":
                     )
                 )
 
-                st.session_state.factibilidad_id = (
-                    fact_id
-                )
+                if fact_id:
 
-                if created:
-
-                    st.success(
-                        f"✅ Factibilidad enviada "
-                        f"y guardada correctamente: "
-                        f"{fact_id}"
+                    st.session_state.factibilidad_id = (
+                        fact_id
                     )
+
+                    if created:
+
+                        st.success(
+                            f"✅ Factibilidad enviada "
+                            f"y guardada correctamente: "
+                            f"{fact_id}"
+                        )
+
+                    else:
+
+                        st.warning(
+                            f"⚠️ Esta factibilidad "
+                            f"ya estaba registrada "
+                            f"con el ID: "
+                            f"{fact_id}"
+                        )
+
+                    st.rerun()
 
                 else:
 
-                    st.warning(
-                        f"⚠️ Esta factibilidad "
-                        f"ya estaba registrada "
-                        f"con el ID: "
-                        f"{fact_id}"
+                    st.error(
+                        "No se pudo guardar la factibilidad."
                     )
-
-                st.rerun()
 
 
 # =========================================================
