@@ -14,6 +14,7 @@ import re
 import html
 import hashlib
 import textwrap
+import os
 
 from datetime import datetime, timezone
 from shapely.geometry import shape
@@ -26,6 +27,23 @@ from supabase import create_client, Client
 from core.geo_engine_h3 import H3GeoEngine
 from core.capex_scoring import capex_score
 from utils.geocoder import resolve_input
+
+# =========================================================
+# SUPABASE
+# =========================================================
+
+SUPABASE_URL = st.secrets[
+    "SUPABASE_URL"
+]
+
+SUPABASE_KEY = st.secrets[
+    "SUPABASE_KEY"
+]
+
+supabase: Client = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
 
 
 # =========================================================
@@ -654,68 +672,49 @@ def build_factibilidad_fingerprint(record):
 
 def register_factibilidad(record):
 
-    fingerprint = (
-        build_factibilidad_fingerprint(
-            record
-        )
-    )
-
-    # -----------------------------------------------------
-    # BUSCAR DUPLICADO
-    # -----------------------------------------------------
-
     try:
 
-        duplicate_response = (
+        # -------------------------------------------------
+        # 1. Crear fingerprint
+        # -------------------------------------------------
+
+        fingerprint = build_factibilidad_fingerprint(
+            record
+        )
+
+        # -------------------------------------------------
+        # 2. Verificar si ya existe
+        # -------------------------------------------------
+
+        existing_response = (
             supabase
             .table("factibilidades")
-            .select(
-                "factibilidad_id,serial"
-            )
-            .eq(
-                "fingerprint",
-                fingerprint
-            )
+            .select("id")
+            .eq("fingerprint", fingerprint)
             .limit(1)
             .execute()
         )
 
-        duplicate_rows = (
-            duplicate_response.data or []
+        existing_rows = (
+            existing_response.data
+            if existing_response.data
+            else []
         )
 
-        if duplicate_rows:
+        if existing_rows:
 
-            existing = duplicate_rows[0]
+            existing_id = existing_rows[0].get(
+                "id"
+            )
 
             return (
-
-                existing.get(
-                    "factibilidad_id"
-                ),
-
+                existing_id,
                 False
             )
 
-    except Exception as e:
-
-        st.error(
-            "No fue posible verificar duplicados."
-        )
-
-        st.exception(e)
-
-        return (
-            None,
-            False
-        )
-
-
-    # -----------------------------------------------------
-    # OBTENER SIGUIENTE SERIAL
-    # -----------------------------------------------------
-
-    try:
+        # -------------------------------------------------
+        # 3. Obtener siguiente serial
+        # -------------------------------------------------
 
         serial_response = (
             supabase
@@ -730,12 +729,14 @@ def register_factibilidad(record):
         )
 
         serial_rows = (
-            serial_response.data or []
+            serial_response.data
+            if serial_response.data
+            else []
         )
 
         if serial_rows:
 
-            max_serial = int(
+            last_serial = int(
                 serial_rows[0].get(
                     "serial",
                     0
@@ -744,132 +745,105 @@ def register_factibilidad(record):
 
         else:
 
-            max_serial = 0
+            last_serial = 0
 
-    except Exception as e:
-
-        st.error(
-            "No fue posible obtener el consecutivo."
+        next_serial = (
+            last_serial + 1
         )
 
-        st.exception(e)
+        # -------------------------------------------------
+        # 4. Generar ID
+        # -------------------------------------------------
 
-        return (
-            None,
-            False
+        fact_id = (
+            f"CO{next_serial:06d}"
         )
 
+        # -------------------------------------------------
+        # 5. Preparar registro
+        # -------------------------------------------------
 
-    next_serial = (
-        max_serial + 1
-    )
+        tipo = str(
+            record.get(
+                "tipo",
+                "NEGATIVA"
+            )
+        ).upper()
 
-    fact_id = (
-        f"CO{next_serial:06d}"
-    )
-
-
-    # -----------------------------------------------------
-    # FECHA
-    # -----------------------------------------------------
-
-    fecha = datetime.now(
-        timezone.utc
-    ).isoformat()
-
-
-    # -----------------------------------------------------
-    # ESTADO
-    # -----------------------------------------------------
-
-    tipo = str(
-        record.get(
-            "tipo",
-            "NEGATIVA"
+        estado = (
+            "POSITIVA"
+            if tipo == "POSITIVA"
+            else "NEGATIVA"
         )
-    ).upper()
 
-    if tipo == "POSITIVA":
+        datos_cliente = record.get(
+            "datos_cliente",
+            {}
+        )
 
-        estado = "POSITIVA"
+        presupuestos = record.get(
+            "presupuestos",
+            {}
+        )
 
-    else:
+        oportunidades = record.get(
+            "oportunidades",
+            []
+        )
 
-        estado = "NEGATIVA"
+        # -------------------------------------------------
+        # 6. Insertar en Supabase
+        # -------------------------------------------------
 
+        payload = {
 
-    # -----------------------------------------------------
-    # DATOS
-    # -----------------------------------------------------
+            "id":
+                fact_id,
 
-    datos_cliente = record.get(
-        "datos_cliente",
-        {}
-    )
+            "serial":
+                next_serial,
 
-    presupuestos = record.get(
-        "presupuestos",
-        {}
-    )
+            "fingerprint":
+                fingerprint,
 
-    oportunidades = record.get(
-        "oportunidades",
-        []
-    )
+            "tipo":
+                tipo,
 
+            "estado":
+                estado,
 
-    # -----------------------------------------------------
-    # INSERTAR EN SUPABASE
-    # -----------------------------------------------------
+            "datos_cliente":
+                datos_cliente,
 
-    row = {
+            "presupuestos":
+                presupuestos,
 
-        "factibilidad_id":
-            fact_id,
-
-        "serial":
-            next_serial,
-
-        "fingerprint":
-            fingerprint,
-
-        "fecha":
-            fecha,
-
-        "tipo":
-            tipo,
-
-        "estado":
-            estado,
-
-        "datos_cliente":
-            datos_cliente,
-
-        "presupuestos":
-            presupuestos,
-
-        "oportunidades":
-            oportunidades
-    }
-
-
-    try:
+            "oportunidades":
+                oportunidades
+        }
 
         response = (
             supabase
             .table("factibilidades")
-            .insert(row)
+            .insert(payload)
             .execute()
         )
 
-        inserted = (
-            response.data or []
+        # -------------------------------------------------
+        # 7. Validar respuesta
+        # -------------------------------------------------
+
+        inserted_rows = (
+            response.data
+            if response.data
+            else []
         )
 
-        if not inserted:
+        if not inserted_rows:
 
-            raise RuntimeError(
-                "Supabase no devolvió el registro insertado."
+            raise Exception(
+                "Supabase no devolvió "
+                "el registro insertado."
             )
 
         return (
@@ -879,46 +853,8 @@ def register_factibilidad(record):
 
     except Exception as e:
 
-        # -----------------------------------------------
-        # PROTECCIÓN CONTRA CONCURRENCIA
-        # -----------------------------------------------
-
-        try:
-
-            duplicate_response = (
-                supabase
-                .table("factibilidades")
-                .select(
-                    "factibilidad_id"
-                )
-                .eq(
-                    "fingerprint",
-                    fingerprint
-                )
-                .limit(1)
-                .execute()
-            )
-
-            duplicate_rows = (
-                duplicate_response.data or []
-            )
-
-            if duplicate_rows:
-
-                return (
-
-                    duplicate_rows[0].get(
-                        "factibilidad_id"
-                    ),
-
-                    False
-                )
-
-        except Exception:
-            pass
-
         st.error(
-            "No fue posible guardar la factibilidad en Supabase."
+            "No se pudo guardar la factibilidad."
         )
 
         st.exception(e)
@@ -927,7 +863,6 @@ def register_factibilidad(record):
             None,
             False
         )
-
 
 # =========================================================
 # NORMALIZAR TEXTO
