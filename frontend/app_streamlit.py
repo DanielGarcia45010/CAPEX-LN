@@ -3698,7 +3698,7 @@ elif section == "Historial":
 
     st.download_button(
 
-        label="📥 Descargar hrial",
+        label="📥 Descargar historial",
 
         data=csv_historial,
 
