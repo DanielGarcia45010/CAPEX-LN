@@ -1900,7 +1900,7 @@ if section == "Cotización":
 
     location_input = st.text_input(
 
-        "📍 Dirección o coordenadas",
+        "📍 Coordenadas Exactas",
 
         placeholder=(
             "Ej: Calle 100 # 15-20, "
@@ -3388,13 +3388,39 @@ elif section == "Historial":
                 ).title()
         })
 
+    df_historial = pd.DataFrame(
+        summary_rows
+    )
+
     st.dataframe(
 
-        pd.DataFrame(
-            summary_rows
-        ),
+        df_historial,
 
         use_container_width=True,
 
         hide_index=True
+    )
+
+
+    # =====================================================
+    # DESCARGAR HISTORIAL CSV
+    # =====================================================
+
+    csv_historial = df_historial.to_csv(
+        index=False,
+        sep=";",
+        encoding="utf-8-sig"
+    )
+
+    st.download_button(
+
+        label="📥 Descargar historial",
+
+        data=csv_historial,
+
+        file_name="historial_factibilidades.csv",
+
+        mime="text/csv",
+
+        key="descargar_historial_csv"
     )
