@@ -1900,11 +1900,10 @@ if section == "Cotización":
 
     location_input = st.text_input(
 
-        "📍 Coordenadas Exactas",
+        "📍 Coordenadas",
 
         placeholder=(
-            "Ej: Calle 100 # 15-20, "
-            "Bogotá o 4.6762,-74.0485"
+            "Ej: 4.6762,-74.0485, "
         ),
 
         key="location_input"
